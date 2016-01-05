@@ -1,0 +1,30 @@
+.well.well-sm.lines
+	h3.hidden-sm.hidden-xs
+		i.fa.fa-subway
+		| &nbsp;Lines
+	each item in roster
+		.well.well-sm.jmri(data-address=item.data.address, class=item.data.address=='13'?'yamanote':'hidden')
+			.row
+				.col-xs-2.col-sm-3.col-md-2
+					img.img-responsive(src=item.data.thumbnailUrl)
+				.col-xs-10.col-sm-9.col-md-10
+					h5.hidden-sm.hidden-xs
+						| &nbsp;#{item.data.name}
+					.btn-toolbar
+						.btn-group.function
+							a.btn.btn-default.btn-sm(data-function="0",data-value-on="true",data-value-off="false")
+								i.fa.fa-lightbulb-o
+						.btn-group.direction
+							a.btn.btn-default.btn-sm(data-value="true")
+								i.fa.fa-arrow-left
+							a.btn.btn-default.btn-sm(data-value="false")
+								i.fa.fa-arrow-right
+						.btn-group.speed
+							a.btn.btn-default.btn-sm(data-value="0")
+								i.fa.fa-stop
+							a.btn.btn-default.btn-sm(data-value="0.15")
+								i.fa.fa-play
+							a.btn.btn-default.btn-sm(data-value="0.3")
+								i.fa.fa-forward
+							a.btn.btn-default.btn-sm(data-value="0.6")
+								i.fa.fa-fast-forward

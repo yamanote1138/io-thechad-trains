@@ -1,0 +1,42 @@
+{
+  "author": "Chad Francis <discgolfer1138@gmail.com> (www.thechad.io)",
+  "name": "io-thechad-trains",
+  "description": "web ui for my dcc model train layout",
+  "version": "0.0.1",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/discgolfer1138/io-thechad-trains.git"
+  },
+  "main": "app.js",
+  "scripts": {
+    "start": "node app",
+    "dev": "nodemon -e 'js,jade' -i 'node_modules' app.js",
+    "postinstall": "./node_modules/bower/bin/bower install"
+  },
+  "dependencies": {
+    "async": "^1.4.0",
+    "basic-auth-connect": "^1.0.0",
+    "body-parser": "^1.14.1",
+    "bower": "^1.6.9",
+    "broadway": "^3.1.0",
+    "colors": "^1.1.2",
+    "config": "^1.17.1",
+    "express": "^4.13.3",
+    "express-jsend": "^0.1.0",
+    "foscam": "~0.2.2",
+    "foscamhd-client": "~0.2.1",
+    "indigo-client": "~0.1.0",
+    "jade": "^1.11.0",
+    "jmri-client": "^0.1.4",
+    "jquery": "^2.1.4",
+    "less-middleware": "^2.0.1",
+    "lodash": "^3.10.0",
+    "method-override": "^2.3.4",
+    "moment": "^2.10.3",
+    "morgan": "^1.6.1",
+    "redis": "^2.4.2",
+    "request": "^2.67.0",
+    "serve-static": "^1.10.0"
+  }
+}
