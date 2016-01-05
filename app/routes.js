@@ -2,7 +2,7 @@
   'use strict';
 
   module.exports = function(app){
-    app.get('/', app.controllers.trains.index);
+    app.get('/', app.auth, app.controllers.trains.index);
 
     app.get('/trains/power/:value?', app.auth, app.controllers.trains.power);
     app.get('/trains/throttle/:address/speed/:value?', app.auth, app.controllers.trains.throttle);

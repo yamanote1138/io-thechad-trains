@@ -1,13 +1,14 @@
 (function(){
   'use strict';
 
-  var jmriClient = require('jmri-client'),
+  var JmriClient = require('jmri-client'),
       request = require('request');
 
   module.exports = function(app){
   
     var config = app.config.get('jmri');
     var cacheDuration = config.cacheDuration;
+    var jmriClient = new JmriClient(config.host);
 
     var svc = {
       getRoster: function(done){
