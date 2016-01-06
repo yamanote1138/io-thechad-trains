@@ -1,10 +1,8 @@
 (function(){
   'use strict';
 
-  //require('newrelic');
   var App = require('broadway'),
     colors = require('colors'),
-    fs = require('fs'),
     express = require('express'),
     config = require('config');
 
@@ -33,8 +31,5 @@
     }
 
     console.log('listening over http on port %s', this.given.http);
-
-    // init any post-startup plugins
-    //require('./app/plugins/biscuitron.js')(app);
   });
 })();
