@@ -24,7 +24,7 @@
 		"pass": "2xdY6nXJvdjLgKvG"
 	},
 	"jmri":{
-		"host":"http://jmri.rodimus.x.thechad.io",
+		"host":"http://astrotrain.local:12080",
 		"cacheDuration": 86400
 	},
 	"webcam": {
