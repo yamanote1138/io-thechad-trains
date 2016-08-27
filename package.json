@@ -2,7 +2,7 @@
   "author": "Chad Francis <discgolfer1138@gmail.com> (www.thechad.io)",
   "name": "io-thechad-trains",
   "description": "web ui for my dcc model train layout",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "repository": {
     "type": "git",
