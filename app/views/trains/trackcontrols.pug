@@ -1,0 +1,41 @@
+.well.well-sm.jmri
+	h3.hidden-sm.hidden-xs
+		i.fa.fa-gamepad
+		| &nbsp;Controls
+
+	.row
+		.col-xs-5.col-md-12
+			h4.hidden-sm.hidden-xs Track
+			.btn-group
+				a.btn.btn-default.btn-md.power(data-value-on="2",data-value-off="4")
+					i.fa.fa-power-off
+				a.btn.btn-default.btn-md.refresh
+					i.fa.fa-refresh
+				a.btn.btn-default.btn-md.debugtoggle(title="show/hide debug window")
+					i.fa.fa-bug
+		.col-xs-7.col-md-12
+			h4.hidden-sm.hidden-xs Webcam
+			.btn-group
+				a.btn.btn-default.btn-md.indigo(data-deviceid="Train Room", data-key="isOn", data-value-on="1", data-value-off="0", title="toggle lights")
+					i.fa.fa-lightbulb-o
+				a.btn.btn-default.btn-md.cam(data-cmd="ir", title="toggle IR")
+					i.fa.fa-eye-slash
+				a.btn.btn-default.btn-md.cam(data-cmd="preset", data-preset-name="left", title="move left")
+					i.fa.fa-arrow-left
+				a.btn.btn-default.btn-md.cam(data-cmd="preset", data-preset-name="primary", title="recenter")
+					i.fa.fa-arrow-up
+				a.btn.btn-default.btn-md.cam(data-cmd="preset", data-preset-name="right", title="move right")
+					i.fa.fa-arrow-right
+				//-
+					a.btn.btn-default.btn-sm.cam(data-cmd="stat", title="get camera status")
+						i.fa.fa-info-sign
+	.row
+		.col-xs-12
+			if turnouts.length
+				h4.hidden-sm.hidden-xs Turnouts
+				.btn-group.pull-left.turnout
+					each turnout in turnouts
+						a.btn.btn-default.btn-md(data-value-on="4",data-value-off="2",data-address=turnout.data.name)
+							i.fa.fa-random
+
+	.clearfix

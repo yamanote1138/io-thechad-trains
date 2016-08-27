@@ -1,0 +1,15 @@
+{
+  "http": "PORT",
+  "logging":{
+    "level":  "LOG_LEVEL",
+    "pretty": "LOG_PRETTY",
+    "path":   "LOG_PATH"
+  },
+  "services":{
+    "cache":{
+      "redis":{
+        "url": "REDISCLOUD_URL"
+      }
+    }
+  }
+}
