@@ -1,12 +1,12 @@
 (function(){
   'use strict';
 
-  //require('newrelic');
-  var App = require('broadway'),
-    colors = require('colors'),
-    fs = require('fs'),
-    express = require('express'),
-    config = require('config');
+  //set local env vars
+  require('dotenv').config({silent: true});
+
+  const App = require('broadway'),
+        express = require('express'),
+        config = require('config');
 
   config.http = process.env.PORT || 3000;
 
@@ -18,6 +18,7 @@
 
   app.preboot(function (app, options, next) {
     require('express-jsend');
+    require('./app/logger')(app);
     require('./app/http')(app);
     require('./app/auth')(app);
     require('./app/services')(app);
@@ -28,13 +29,10 @@
 
   app.start(function(err) {
     if (err) {
-      console.error('error on startup: %s', err.message);
+      app.logger.error(`error on startup: ${err.message}`);
       return process.exit(1);
     }
 
-    console.log('listening over http on port %s', this.given.http);
-
-    // init any post-startup plugins
-    //require('./app/plugins/biscuitron.js')(app);
+    app.logger.info(`listening over http on port ${this.given.http}`);
   });
 })();

@@ -8,11 +8,6 @@
       trains:       require('./trains')(app),
       util:         require('./util')()
     };
-    var ctrlNames = [];
-    for(var ctrlName in app.controllers){
-      if(app.controllers.hasOwnProperty(ctrlName)) ctrlNames.push(ctrlName);
-    }
-    ctrlNames.sort();
-    console.log(('initialized controllers: '+ctrlNames.join(',')).grey);
+    app.logger.trace('controllers initialized');
   };
 })();

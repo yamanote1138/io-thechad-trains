@@ -9,6 +9,6 @@
       return users[user] && (users[user] == pass);
     });
 
-    console.log(('auth plugin initialized').grey);
+    app.logger.trace('initialized auth plugin');
   };
 })();
