@@ -16,5 +16,7 @@
     app.get('/devices', app.auth, app.controllers.devices.index);
 
     app.get('/buildinfo', app.auth, app.controllers.util.buildInfo);
+
+    app.logger.trace('routes initialized');
   };
 })();

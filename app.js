@@ -1,35 +1,37 @@
-(function(){
-  'use strict';
+'use strict';
 
-  var App = require('broadway'),
-    colors = require('colors'),
-    express = require('express'),
-    config = require('config');
+//set local env vars
+require('dotenv').config({silent: true});
 
-  config.http = process.env.PORT || 3000;
+const App = require('broadway'),
+  colors = require('colors'),
+  config = require('config');
+  express = require('express'),
 
-  var app = new App(config);
+config.http = process.env.PORT || 3000;
 
-  app.mixin(express());
+var app = new App(config);
 
-  app.cache = require('redis').createClient(process.env.REDISCLOUD_URL||{});
+app.mixin(express());
 
-  app.preboot(function (app, options, next) {
-    require('express-jsend');
-    require('./app/http')(app);
-    require('./app/auth')(app);
-    require('./app/services')(app);
-    require('./app/controllers')(app);
-    require('./app/routes')(app);
-    next();
-  });
+app.cache = require('redis').createClient(process.env.REDISCLOUD_URL||{});
 
-  app.start(function(err) {
-    if (err) {
-      console.error('error on startup: %s', err.message);
-      return process.exit(1);
-    }
+app.preboot(function (app, options, next) {
+  require('express-jsend');
+  require('./app/logger')(app);
+  require('./app/http')(app);
+  require('./app/auth')(app);
+  require('./app/services')(app);
+  require('./app/controllers')(app);
+  require('./app/routes')(app);
+  next();
+});
 
-    console.log('listening over http on port %s', this.given.http);
-  });
-})();
+app.start(function(err) {
+  if (err) {
+    app.logger.error(`error on startup: ${err.message}`);
+    return process.exit(1);
+  }
+
+  app.logger.info(`listening over http on port ${this.given.http}`);
+});

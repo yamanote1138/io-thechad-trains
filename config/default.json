@@ -10,12 +10,6 @@
 			"port": 80,
 			"user": "admin",
 			"pass": "1ts4tr4p!"
-		},
-		"streetwise": {
-			"host": "streetwise.x.thechad.io",
-			"port": 80,
-			"user": "admin",
-			"pass": "1ts4tr4p!"
 		}
 	},
 	"indigo":{
@@ -24,77 +18,7 @@
 		"pass": "2xdY6nXJvdjLgKvG"
 	},
 	"jmri":{
-		"host":"http://jmri.rodimus.x.thechad.io",
+		"host":"http://astrotrain.local:12080",
 		"cacheDuration": 86400
-	},
-	"webcam": {
-		"cameras":[
-			{
-				"id":1,
-				"label":"DonkeyCam",
-				"host":"http://wheelie.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":2,
-				"label":"DonkeyCam2",
-				"host":"http://streetwise.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":5,
-				"label":"Train Room",
-				"host":"http://wheelie.x.thechad.io"
-			},
-			{
-				"id":4,
-				"label":"Living Room",
-				"host":"http://tracks.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":6,
-				"label":"Front Door",
-				"host":"http://perceptor.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":9,
-				"label":"Front Yard",
-				"host":"http://sunstreaker.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":7,
-				"label":"Back Porch",
-				"host":"http://outback.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":8,
-				"label":"Back Yard",
-				"host":"http://hound.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":10,
-				"label":"Garage",
-				"host":"http://smokescreen.x.thechad.io",
-				"thumbUrl":"snapshot.cgi?user=admin&amp;pwd=1ts4tr4p!",
-				"streamUrl":"videostream.cgi?user=admin&amp;pwd=1ts4tr4p!"
-			},
-			{
-				"id":3,
-				"label":"The Nerdery",
-				"host":"http://evocam.rodimus.x.thechad.io"
-			}
-		]
 	}
 }
