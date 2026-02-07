@@ -11,6 +11,7 @@ export const config = {
   },
   app: {
     title: import.meta.env.VITE_APP_TITLE || 'Trains Over the Interwebs',
+    logLevel: (import.meta.env.VITE_LOG_LEVEL || 'info') as 'debug' | 'info',
   },
 } as const
 

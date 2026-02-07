@@ -4,11 +4,11 @@
       <!-- Locomotive header with image -->
       <div class="d-flex align-items-center mb-3">
         <img
-          v-if="throttle.thumbnailUrl"
-          :src="throttle.thumbnailUrl"
+          :src="imageSrc"
           :alt="throttle.name"
           class="me-3"
           style="width: 100px; height: 60px; object-fit: cover;"
+          @error="onImageError"
         >
         <div>
           <h5 class="card-title mb-0">{{ throttle.name }}</h5>
@@ -28,8 +28,8 @@
           max="1"
           step="0.01"
           :value="throttle.speed"
-          @input="onSpeedChange"
-          :disabled="!isConnected"
+          @change="onSpeedChange"
+          :disabled="controlsDisabled"
         >
       </div>
 
@@ -37,48 +37,96 @@
       <div class="btn-group w-100 mb-3">
         <button
           class="btn"
-          :class="throttle.direction === true ? 'btn-primary' : 'btn-outline-secondary'"
-          @click="setDirection(true)"
-          :disabled="!isConnected"
-        >
-          <i class="fas fa-arrow-up"></i> Forward
-        </button>
-        <button
-          class="btn"
           :class="throttle.direction === false ? 'btn-primary' : 'btn-outline-secondary'"
           @click="setDirection(false)"
-          :disabled="!isConnected"
+          :disabled="controlsDisabled"
         >
           <i class="fas fa-arrow-down"></i> Reverse
         </button>
-      </div>
-
-      <!-- Function buttons (F0-F28) -->
-      <div v-if="Object.keys(throttle.functions).length > 0" class="d-flex flex-wrap gap-2">
         <button
-          v-for="(fn, key) in throttle.functions"
-          :key="key"
-          class="btn btn-sm"
-          :class="fn.value ? 'btn-warning' : 'btn-outline-secondary'"
-          @click="toggleFunction(key)"
-          :disabled="!isConnected"
+          class="btn btn-danger"
+          @click="stopThrottle"
+          :disabled="controlsDisabled"
         >
-          {{ fn.label || key }}
+          <i class="fas fa-stop"></i> Stop
+        </button>
+        <button
+          class="btn"
+          :class="throttle.direction === true ? 'btn-primary' : 'btn-outline-secondary'"
+          @click="setDirection(true)"
+          :disabled="controlsDisabled"
+        >
+          <i class="fas fa-arrow-up"></i> Forward
         </button>
       </div>
+
+      <!-- Headlight button (F0) -->
+      <div class="mb-3">
+        <button
+          class="btn"
+          :class="headlightOn ? 'btn-warning' : 'btn-outline-secondary'"
+          @click="toggleHeadlight"
+          :disabled="controlsDisabled"
+        >
+          <i class="fas fa-lightbulb"></i> Headlight
+        </button>
+      </div>
+
+      <!-- Release button -->
+      <button
+        class="btn btn-outline-danger w-100"
+        @click="onRelease"
+        :disabled="!isConnected || isReleasing"
+      >
+        <i class="fas fa-times-circle"></i>
+        {{ isReleasing ? 'Releasing...' : 'Release Throttle' }}
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
+import { config } from '@/config'
+import { PowerState } from '@/types/jmri'
 import type { Throttle, Direction } from '@/types/jmri'
 
 const props = defineProps<{
   throttle: Throttle
 }>()
 
-const { isConnected, setThrottleSpeed, setThrottleDirection, setThrottleFunction } = useJmri()
+const { isConnected, power, setThrottleSpeed, setThrottleDirection, setThrottleFunction, releaseThrottle } = useJmri()
+
+const isReleasing = ref(false)
+
+// Disable controls when not connected or power is off
+const controlsDisabled = computed(() => {
+  return !isConnected.value || power.value !== PowerState.ON
+})
+
+// Placeholder image URL
+const PLACEHOLDER_IMAGE = 'https://placehold.co/100x60/2d2d2d/888888?text=Loco'
+
+// Track if the real image failed to load
+const imageLoadFailed = ref(false)
+
+// Compute the image source based on mock mode and load failures
+const imageSrc = computed(() => {
+  if (config.jmri.mock.enabled || imageLoadFailed.value || !props.throttle.thumbnailUrl) {
+    return PLACEHOLDER_IMAGE
+  }
+  return props.throttle.thumbnailUrl
+})
+
+// Compute headlight state from F0
+const headlightOn = computed(() => {
+  return props.throttle.functions['F0']?.value || false
+})
+
+function onImageError() {
+  imageLoadFailed.value = true
+}
 
 function onSpeedChange(event: Event) {
   const speed = parseFloat((event.target as HTMLInputElement).value)
@@ -89,9 +137,20 @@ function setDirection(direction: Direction) {
   setThrottleDirection(props.throttle.address, direction)
 }
 
-function toggleFunction(fnKey: string) {
-  const fnNumber = parseInt(fnKey.replace('F', ''))
-  const currentState = props.throttle.functions[fnKey].value
-  setThrottleFunction(props.throttle.address, fnNumber, !currentState)
+function stopThrottle() {
+  setThrottleSpeed(props.throttle.address, 0)
+}
+
+function toggleHeadlight() {
+  setThrottleFunction(props.throttle.address, 0, !headlightOn.value)
+}
+
+async function onRelease() {
+  isReleasing.value = true
+  try {
+    await releaseThrottle(props.throttle.address)
+  } finally {
+    isReleasing.value = false
+  }
 }
 </script>

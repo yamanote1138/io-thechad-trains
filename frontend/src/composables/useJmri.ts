@@ -5,19 +5,21 @@
 
 import { ref, computed, onMounted } from 'vue'
 import { getJmriWsUrl, config } from '@/config'
-import type { JmriState, Throttle, PowerState, Direction, Turnout } from '@/types/jmri'
+import { logger } from '@/utils/logger'
+import type { JmriState, Throttle, RosterEntry, PowerState, Direction } from '@/types/jmri'
 
 import { JmriClient } from 'jmri-client'
 
 // Singleton state
 const jmriState = ref<JmriState>({
   power: 0, // PowerState.UNKNOWN
-  throttles: new Map(),
-  turnouts: new Map()
+  roster: new Map(),
+  throttles: new Map()
 })
 
 const isConnected = ref(false)
 let jmriClient: any = null
+const throttleIds = new Map<number, string>() // address -> throttleId mapping
 
 /**
  * Main JMRI composable
@@ -32,8 +34,8 @@ export function useJmri() {
     }
 
     const wsUrl = getJmriWsUrl()
-    console.log('Initializing JMRI client with URL:', wsUrl)
-    console.log('Mock mode enabled:', config.jmri.mock.enabled)
+    logger.debug('Initializing JMRI client with URL:', wsUrl)
+    logger.debug('Mock mode enabled:', config.jmri.mock.enabled)
 
     // Initialize jmri-client v3.0
     jmriClient = new JmriClient({
@@ -48,44 +50,67 @@ export function useJmri() {
 
     // Set up event handlers
     jmriClient.on('connected', () => {
-      console.log('JMRI client connected')
+      logger.info('JMRI client connected')
       isConnected.value = true
     })
 
     jmriClient.on('disconnected', () => {
-      console.log('JMRI client disconnected')
+      logger.info('JMRI client disconnected')
       isConnected.value = false
     })
 
     jmriClient.on('power:changed', (state: any) => {
-      console.log('Power state changed:', state)
+      logger.info('Power state changed:', state === 2 ? 'ON' : state === 4 ? 'OFF' : 'UNKNOWN')
       jmriState.value.power = state
     })
 
-    jmriClient.on('throttle:updated', (id: string, data: any) => {
-      console.log('Throttle update:', id, data)
-      const throttle: Throttle = {
-        address: parseInt(id),
-        name: data.name || `Loco ${id}`,
-        road: data.road || '',
-        number: data.number || '',
-        imageUrl: data.imageUrl,
-        thumbnailUrl: data.thumbnailUrl,
-        speed: data.speed || 0,
-        direction: data.forward === true,
-        functions: data.functions || {}
-      }
-      jmriState.value.throttles.set(parseInt(id), throttle)
-    })
+    jmriClient.on('throttle:updated', (throttleId: string, data: any) => {
+      logger.debug('Throttle update event:', throttleId, data)
 
-    jmriClient.on('turnout', (data: any) => {
-      console.log('Turnout update:', data)
-      const turnout: Turnout = {
-        name: data.name,
-        state: data.state || 'unknown',
-        inverted: data.inverted || false
+      // Find address from our throttleIds map (reverse lookup)
+      let address: number | undefined
+      for (const [addr, tId] of throttleIds.entries()) {
+        if (tId === throttleId) {
+          address = addr
+          break
+        }
       }
-      jmriState.value.turnouts.set(data.name, turnout)
+
+      if (!address) {
+        logger.error('Received update for unknown throttle:', throttleId)
+        return
+      }
+
+      // Get existing throttle and merge updates
+      const existing = jmriState.value.throttles.get(address)
+      if (!existing) {
+        logger.error('No throttle found for address:', address)
+        return
+      }
+
+      // Handle function updates - functions come directly in data as F0, F1, etc.
+      // Extract any function keys (F0-F28) from the data
+      const functionUpdates: Record<string, any> = {}
+      for (const key in data) {
+        if (key.match(/^F\d+$/)) {
+          // Convert boolean to function object format if needed
+          functionUpdates[key] = typeof data[key] === 'boolean'
+            ? { value: data[key], label: key, lockable: false }
+            : data[key]
+        }
+      }
+
+      // Update only the changed fields
+      const updated: Throttle = {
+        ...existing,
+        speed: data.speed !== undefined ? data.speed : existing.speed,
+        direction: data.forward !== undefined ? data.forward : existing.direction,
+        functions: Object.keys(functionUpdates).length > 0
+          ? { ...existing.functions, ...functionUpdates }
+          : existing.functions
+      }
+
+      jmriState.value.throttles.set(address, updated)
     })
 
     // Connect to JMRI
@@ -97,20 +122,27 @@ export function useJmri() {
    */
   async function setPower(state: 'on' | 'off') {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot set power: JMRI client not connected')
+      logger.error('Cannot set power: JMRI client not connected')
       return
     }
 
     try {
-      console.log('Setting power:', state)
+      logger.info('Setting power:', state.toUpperCase())
+
+      // If turning power off, release all acquired throttles
+      if (state === 'off') {
+        logger.info('Releasing all acquired throttles before turning power off')
+        const addresses = Array.from(jmriState.value.throttles.keys())
+        for (const address of addresses) {
+          await releaseThrottle(address)
+        }
+      }
+
       const powerState = state === 'on' ? 2 : 4
       await jmriClient.setPower(powerState)
-
-      // Manually update state since mock mode doesn't emit power:changed events
-      jmriState.value.power = powerState
-      console.log('Power state updated to:', powerState)
+      logger.debug('Power command sent successfully')
     } catch (error) {
-      console.error('Failed to set power:', error)
+      logger.error('Failed to set power:', error)
       throw error
     }
   }
@@ -120,15 +152,21 @@ export function useJmri() {
    */
   async function setThrottleSpeed(address: number, speed: number) {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot set throttle speed: JMRI client not connected')
+      logger.error('Cannot set throttle speed: JMRI client not connected')
+      return
+    }
+
+    const throttleId = throttleIds.get(address)
+    if (!throttleId) {
+      logger.error(`No throttle acquired for address ${address}`)
       return
     }
 
     try {
-      console.log(`Setting throttle ${address} speed to ${speed}`)
-      await jmriClient.setThrottle(address, { speed })
+      logger.debug(`Setting throttle ${address} speed to ${Math.round(speed * 100)}%`)
+      await jmriClient.setThrottleSpeed(throttleId, speed)
     } catch (error) {
-      console.error('Failed to set throttle speed:', error)
+      logger.error('Failed to set throttle speed:', error)
       throw error
     }
   }
@@ -138,15 +176,21 @@ export function useJmri() {
    */
   async function setThrottleDirection(address: number, direction: Direction) {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot set throttle direction: JMRI client not connected')
+      logger.error('Cannot set throttle direction: JMRI client not connected')
+      return
+    }
+
+    const throttleId = throttleIds.get(address)
+    if (!throttleId) {
+      logger.error(`No throttle acquired for address ${address}`)
       return
     }
 
     try {
-      console.log(`Setting throttle ${address} direction to ${direction}`)
-      await jmriClient.setThrottle(address, { forward: direction })
+      logger.debug(`Setting throttle ${address} direction to ${direction ? 'FORWARD' : 'REVERSE'}`)
+      await jmriClient.setThrottleDirection(throttleId, direction)
     } catch (error) {
-      console.error('Failed to set throttle direction:', error)
+      logger.error('Failed to set throttle direction:', error)
       throw error
     }
   }
@@ -156,35 +200,21 @@ export function useJmri() {
    */
   async function setThrottleFunction(address: number, fn: number, state: boolean) {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot set throttle function: JMRI client not connected')
+      logger.error('Cannot set throttle function: JMRI client not connected')
+      return
+    }
+
+    const throttleId = throttleIds.get(address)
+    if (!throttleId) {
+      logger.error(`No throttle acquired for address ${address}`)
       return
     }
 
     try {
-      console.log(`Setting throttle ${address} function F${fn} to ${state}`)
-      const functions: Record<string, boolean> = {}
-      functions[`F${fn}`] = state
-      await jmriClient.setThrottle(address, { functions })
+      logger.debug(`Setting throttle ${address} function F${fn} to ${state ? 'ON' : 'OFF'}`)
+      await jmriClient.setThrottleFunction(throttleId, `F${fn}`, state)
     } catch (error) {
-      console.error('Failed to set throttle function:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Set turnout state
-   */
-  async function setTurnout(name: string, state: 'closed' | 'thrown') {
-    if (!jmriClient || !isConnected.value) {
-      console.error('Cannot set turnout: JMRI client not connected')
-      return
-    }
-
-    try {
-      console.log(`Setting turnout ${name} to ${state}`)
-      await jmriClient.setTurnout(name, state === 'closed' ? 2 : 4)
-    } catch (error) {
-      console.error('Failed to set turnout:', error)
+      logger.error('Failed to set throttle function:', error)
       throw error
     }
   }
@@ -194,74 +224,110 @@ export function useJmri() {
    */
   async function fetchRoster() {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot fetch roster: JMRI client not connected')
+      logger.error('Cannot fetch roster: JMRI client not connected')
       return
     }
 
     try {
-      console.log('Fetching roster from JMRI')
+      logger.info('Fetching roster from JMRI')
       const roster = await jmriClient.getRoster()
 
-      // Process roster entries
-      roster.forEach((entry: any) => {
+      // Process roster entries (don't acquire yet)
+      for (const entry of roster) {
         const address = entry.data?.address || entry.address
         const thumbnailUrl = entry.data?.name
           ? `${config.jmri.protocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.data.name)}/icon?maxHeight=200`
           : undefined
 
-        const throttle: Throttle = {
+        const rosterEntry: RosterEntry = {
           address,
           name: entry.data?.name || `Loco ${address}`,
           road: entry.data?.road || '',
           number: entry.data?.number || '',
-          thumbnailUrl,
-          speed: 0,
-          direction: true, // Direction.FORWARD
-          functions: {}
+          thumbnailUrl
         }
-        jmriState.value.throttles.set(address, throttle)
-      })
+        jmriState.value.roster.set(address, rosterEntry)
+      }
 
-      console.log(`Loaded ${roster.length} locomotives from roster`)
+      logger.info(`Loaded ${roster.length} locomotives from roster`)
     } catch (error) {
-      console.error('Failed to fetch roster:', error)
+      logger.error('Failed to fetch roster:', error)
       throw error
     }
   }
 
   /**
-   * Fetch turnouts from JMRI
+   * Acquire a throttle for control
    */
-  async function fetchTurnouts() {
+  async function acquireThrottle(address: number) {
     if (!jmriClient || !isConnected.value) {
-      console.error('Cannot fetch turnouts: JMRI client not connected')
+      logger.error('Cannot acquire throttle: JMRI client not connected')
+      return
+    }
+
+    const rosterEntry = jmriState.value.roster.get(address)
+    if (!rosterEntry) {
+      logger.error(`No roster entry found for address ${address}`)
       return
     }
 
     try {
-      console.log('Fetching turnouts from JMRI')
-      const turnouts = await jmriClient.getTurnouts()
+      logger.info(`Acquiring throttle for ${rosterEntry.name} (address ${address})`)
+      const throttleId = await jmriClient.acquireThrottle({ address })
+      throttleIds.set(address, throttleId)
+      logger.debug(`Acquired throttle ID: ${throttleId}`)
 
-      // Process turnout entries
-      turnouts.forEach((entry: any) => {
-        const turnout: Turnout = {
-          name: entry.data?.name || entry.name,
-          state: entry.data?.state || 'unknown',
-          inverted: entry.data?.inverted || false
-        }
-        jmriState.value.turnouts.set(turnout.name, turnout)
-      })
-
-      console.log(`Loaded ${turnouts.length} turnouts`)
+      // Create throttle from roster entry
+      const throttle: Throttle = {
+        ...rosterEntry,
+        speed: 0,
+        direction: true, // Direction.FORWARD
+        functions: {}
+      }
+      jmriState.value.throttles.set(address, throttle)
     } catch (error) {
-      console.error('Failed to fetch turnouts:', error)
+      logger.error(`Failed to acquire throttle for address ${address}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Release a throttle
+   */
+  async function releaseThrottle(address: number) {
+    if (!jmriClient || !isConnected.value) {
+      logger.error('Cannot release throttle: JMRI client not connected')
+      return
+    }
+
+    const throttleId = throttleIds.get(address)
+    if (!throttleId) {
+      logger.error(`No throttle acquired for address ${address}`)
+      return
+    }
+
+    const throttle = jmriState.value.throttles.get(address)
+    const name = throttle?.name || `Address ${address}`
+
+    try {
+      // Stop the throttle first
+      logger.debug(`Stopping throttle ${name} before release`)
+      await jmriClient.setThrottleSpeed(throttleId, 0)
+
+      // Release the throttle
+      logger.info(`Releasing throttle for ${name}`)
+      await jmriClient.releaseThrottle(throttleId)
+      throttleIds.delete(address)
+      jmriState.value.throttles.delete(address)
+    } catch (error) {
+      logger.error(`Failed to release throttle for address ${address}:`, error)
       throw error
     }
   }
 
   // Auto-initialize immediately (singleton pattern)
   if (!jmriClient) {
-    console.log('First call to useJmri, initializing...')
+    logger.debug('First call to useJmri, initializing...')
     initialize()
   }
 
@@ -271,8 +337,8 @@ export function useJmri() {
     isConnected,
 
     // Computed
+    roster: computed(() => Array.from(jmriState.value.roster.values())),
     throttles: computed(() => Array.from(jmriState.value.throttles.values())),
-    turnouts: computed(() => Array.from(jmriState.value.turnouts.values())),
     power: computed(() => jmriState.value.power),
 
     // Methods
@@ -281,8 +347,8 @@ export function useJmri() {
     setThrottleSpeed,
     setThrottleDirection,
     setThrottleFunction,
-    setTurnout,
     fetchRoster,
-    fetchTurnouts
+    acquireThrottle,
+    releaseThrottle
   }
 }

@@ -15,9 +15,6 @@
       <!-- Power Control -->
       <PowerControl />
 
-      <!-- Turnout Control -->
-      <TurnoutControl />
-
       <!-- Throttle List -->
       <ThrottleList />
     </div>
@@ -30,11 +27,10 @@ import { useJmri } from '@/composables/useJmri'
 import { config } from '@/config'
 import StatusBar from '@/components/StatusBar.vue'
 import PowerControl from '@/components/PowerControl.vue'
-import TurnoutControl from '@/components/TurnoutControl.vue'
 import ThrottleList from '@/components/ThrottleList.vue'
 
 const appTitle = config.app.title
-const { fetchRoster, fetchTurnouts, isConnected } = useJmri()
+const { fetchRoster, isConnected } = useJmri()
 
 onMounted(async () => {
   // Wait for connection before fetching
@@ -43,7 +39,6 @@ onMounted(async () => {
       clearInterval(checkConnection)
       try {
         await fetchRoster()
-        await fetchTurnouts()
       } catch (error) {
         console.error('Failed to fetch initial data:', error)
       }

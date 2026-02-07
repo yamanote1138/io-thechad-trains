@@ -18,3 +18,4 @@ node_modules
 public/files/webcam
 public/components
 .DS*
+.claude

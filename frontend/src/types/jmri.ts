@@ -9,13 +9,16 @@ export enum Direction {
   REVERSE = false
 }
 
-export interface Throttle {
+export interface RosterEntry {
   address: number;
   name: string;
   road: string;
   number: string;
   imageUrl?: string;
   thumbnailUrl?: string;
+}
+
+export interface Throttle extends RosterEntry {
   speed: number;
   direction: Direction;
   functions: Record<string, ThrottleFunction>;
@@ -27,14 +30,8 @@ export interface ThrottleFunction {
   value: boolean;
 }
 
-export interface Turnout {
-  name: string;
-  state: 'closed' | 'thrown' | 'unknown';
-  inverted: boolean;
-}
-
 export interface JmriState {
   power: PowerState;
+  roster: Map<number, RosterEntry>;
   throttles: Map<number, Throttle>;
-  turnouts: Map<string, Turnout>;
 }
