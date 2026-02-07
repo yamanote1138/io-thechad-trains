@@ -1,47 +1,29 @@
 {
-  "author": "Chad Francis <discgolfer1138@gmail.com> (www.thechad.io)",
   "name": "io-thechad-trains",
-  "description": "web ui for my dcc model train layout",
-  "version": "0.0.2",
+  "version": "1.0.0",
+  "type": "module",
   "private": true,
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/discgolfer1138/io-thechad-trains.git"
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "main": "app.js",
   "scripts": {
-    "start": "node app",
-    "dev": "nodemon -e 'js,jade' -i 'node_modules' app.js",
-    "postinstall": "./node_modules/bower/bin/bower install"
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "async": "^1.4.0",
-    "basic-auth-connect": "^1.0.0",
-    "bluebird": "^3.4.1",
-    "body-parser": "^1.14.1",
-    "bower": "^1.6.9",
-    "broadway": "^3.1.0",
-    "bunyan": "^1.8.1",
-    "bunyan-prettystream": "^0.1.3",
-    "colors": "^1.1.2",
-    "config": "^1.17.1",
-    "dotenv": "^2.0.0",
-    "express": "^4.13.3",
-    "express-jsend": "^0.1.0",
-    "foscam": "~0.2.2",
-    "foscamhd-client": "~0.2.1",
-    "indigo-client": "~0.1.0",
-    "jmri-client": "^0.1.4",
-    "jquery": "^2.1.4",
-    "less-middleware": "^2.0.1",
-    "lodash": "^3.10.0",
-    "method-override": "^2.3.4",
-    "moment": "^2.10.3",
-    "morgan": "^1.6.1",
-    "pug": "^2.0.0-beta6",
-    "redis": "^2.4.2",
-    "request": "^2.67.0",
-    "request-promise": "^3.0.0",
-    "serve-static": "^1.10.0"
+    "bootstrap": "^5.3.3",
+    "events": "^3.3.0",
+    "jmri-client": "^3.0.2",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/tsconfig": "^0.5.1",
+    "sass": "^1.83.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6",
+    "vue-tsc": "^2.1.10"
   }
 }
