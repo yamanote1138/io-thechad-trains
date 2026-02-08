@@ -7,7 +7,7 @@
           :src="imageSrc"
           :alt="entry.name"
           class="me-3"
-          style="width: 100px; height: 60px; object-fit: cover;"
+          style="width: 100px; height: 100px; object-fit: cover;"
           @error="onImageError"
         >
         <div class="flex-grow-1">
@@ -35,7 +35,7 @@
 import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import { config } from '@/config'
-import { PowerState } from '@/types/jmri'
+import { PowerState } from 'jmri-client'
 import type { RosterEntry } from '@/types/jmri'
 
 const props = defineProps<{
@@ -45,7 +45,7 @@ const props = defineProps<{
 const { isConnected, power, acquireThrottle } = useJmri()
 
 // Placeholder image URL
-const PLACEHOLDER_IMAGE = 'https://placehold.co/100x60/2d2d2d/888888?text=Loco'
+const PLACEHOLDER_IMAGE = 'https://placehold.co/200x200/2d2d2d/888888?text=Loco'
 
 // Track if the real image failed to load
 const imageLoadFailed = ref(false)

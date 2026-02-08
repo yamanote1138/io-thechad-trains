@@ -6,9 +6,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { getJmriWsUrl, config } from '@/config'
 import { logger } from '@/utils/logger'
-import type { JmriState, Throttle, RosterEntry, PowerState, Direction } from '@/types/jmri'
+import type { JmriState, Throttle, RosterEntry, Direction } from '@/types/jmri'
 
-import { JmriClient } from 'jmri-client'
+import { JmriClient, PowerState } from 'jmri-client'
 
 // Singleton state
 const jmriState = ref<JmriState>({
@@ -42,21 +42,77 @@ export function useJmri() {
       host: config.jmri.host,
       port: config.jmri.port,
       protocol: config.jmri.protocol,
+      autoConnect: false, // Disable auto-connect, we'll connect manually
       mock: {
         enabled: config.jmri.mock.enabled,
         responseDelay: config.jmri.mock.responseDelay
+      },
+      reconnection: {
+        enabled: true,
+        maxAttempts: 0, // Infinite retries
+        initialDelay: 1000,
+        maxDelay: 30000,
+        multiplier: 1.5,
+        jitter: true
+      },
+      heartbeat: {
+        enabled: true,
+        interval: 30000,
+        timeout: 5000
       }
     })
 
     // Set up event handlers
-    jmriClient.on('connected', () => {
+    jmriClient.on('connected', async () => {
       logger.info('JMRI client connected')
+      isConnected.value = true
+
+      // Fetch initial power state
+      try {
+        const powerState = await jmriClient.getPower()
+        jmriState.value.power = powerState
+        logger.info('Initial power state:', powerState === PowerState.ON ? 'ON' : powerState === PowerState.OFF ? 'OFF' : 'UNKNOWN')
+      } catch (error) {
+        logger.error('Failed to get initial power state:', error)
+      }
+    })
+
+    jmriClient.on('disconnected', (reason: any) => {
+      logger.warn('JMRI client disconnected:', reason)
+      isConnected.value = false
+    })
+
+    jmriClient.on('reconnecting', (attempt: number, delay: number) => {
+      logger.info(`Reconnecting to JMRI (attempt ${attempt}, delay ${delay}ms)`)
+    })
+
+    jmriClient.on('reconnected', () => {
+      logger.info('JMRI client reconnected successfully')
       isConnected.value = true
     })
 
-    jmriClient.on('disconnected', () => {
-      logger.info('JMRI client disconnected')
-      isConnected.value = false
+    jmriClient.on('reconnectionFailed', (attempts: number) => {
+      logger.error(`Failed to reconnect to JMRI after ${attempts} attempts`)
+    })
+
+    jmriClient.on('error', (error: any) => {
+      logger.error('JMRI client error:', error)
+    })
+
+    jmriClient.on('debug', (message: string) => {
+      logger.debug('[JMRI]', message)
+    })
+
+    jmriClient.on('heartbeat:sent', () => {
+      logger.debug('Heartbeat ping sent')
+    })
+
+    jmriClient.on('heartbeat:timeout', () => {
+      logger.warn('JMRI heartbeat timeout - connection may be dead')
+    })
+
+    jmriClient.on('connectionStateChanged', (state: any) => {
+      logger.debug('Connection state changed:', state)
     })
 
     jmriClient.on('power:changed', (state: any) => {
@@ -138,9 +194,14 @@ export function useJmri() {
         }
       }
 
-      const powerState = state === 'on' ? 2 : 4
+      const powerState = state === 'on' ? PowerState.ON : PowerState.OFF
       await jmriClient.setPower(powerState)
       logger.debug('Power command sent successfully')
+
+      // Verify the power state after setting
+      const actualState = await jmriClient.getPower()
+      jmriState.value.power = actualState
+      logger.info('Power state after setting:', actualState === PowerState.ON ? 'ON' : actualState === PowerState.OFF ? 'OFF' : 'UNKNOWN')
     } catch (error) {
       logger.error('Failed to set power:', error)
       throw error
@@ -235,8 +296,10 @@ export function useJmri() {
       // Process roster entries (don't acquire yet)
       for (const entry of roster) {
         const address = entry.data?.address || entry.address
+        // Convert WebSocket protocol to HTTP for image URLs
+        const httpProtocol = config.jmri.protocol === 'wss' ? 'https' : 'http'
         const thumbnailUrl = entry.data?.name
-          ? `${config.jmri.protocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.data.name)}/icon?maxHeight=200`
+          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.data.name)}/icon?maxHeight=200`
           : undefined
 
         const rosterEntry: RosterEntry = {

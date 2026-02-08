@@ -4,33 +4,51 @@
       <h5 class="card-title">Track Power</h5>
       <button
         class="btn btn-lg"
-        :class="power === 2 ? 'btn-success' : 'btn-danger'"
+        :class="buttonClass"
         @click="togglePower"
         :disabled="!isConnected || isBusy"
       >
-        <i class="fas" :class="power === 2 ? 'fa-bolt' : 'fa-power-off'"></i>
-        {{ power === 2 ? 'ON' : 'OFF' }}
+        <i class="fas" :class="buttonIcon"></i>
+        {{ buttonText }}
       </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
+import { PowerState, powerStateToString } from 'jmri-client'
 
 const { power, isConnected, setPower } = useJmri()
 const isBusy = ref(false)
 
+const buttonClass = computed(() => {
+  if (power.value === PowerState.ON) return 'btn-success'
+  if (power.value === PowerState.OFF) return 'btn-danger'
+  return 'btn-warning'  // UNKNOWN state
+})
+
+const buttonText = computed(() => {
+  return powerStateToString(power.value)
+})
+
+const buttonIcon = computed(() => {
+  if (power.value === PowerState.ON) return 'fa-bolt'
+  if (power.value === PowerState.OFF) return 'fa-power-off'
+  return 'fa-circle-question'  // UNKNOWN state
+})
+
 async function togglePower() {
   console.log('=== POWER BUTTON CLICKED ===')
-  console.log('Current power state:', power.value)
+  console.log('Current power state:', power.value, `(${powerStateToString(power.value)})`)
   console.log('Is connected:', isConnected.value)
   console.log('Is busy:', isBusy.value)
 
   isBusy.value = true
   try {
-    const newState = power.value === 2 ? 'off' : 'on'
+    // Toggle: ON → OFF, OFF → ON, UNKNOWN → ON
+    const newState = power.value === PowerState.ON ? 'off' : 'on'
     console.log('Setting power to:', newState)
     await setPower(newState)
     console.log('Power set successfully')

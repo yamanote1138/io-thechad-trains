@@ -1,8 +1,4 @@
-export enum PowerState {
-  ON = 2,
-  OFF = 4,
-  UNKNOWN = 0
-}
+import type { PowerState } from 'jmri-client'
 
 export enum Direction {
   FORWARD = true,
