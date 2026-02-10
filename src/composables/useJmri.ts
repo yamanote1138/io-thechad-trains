@@ -6,7 +6,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getJmriWsUrl, config } from '@/config'
 import { logger } from '@/utils/logger'
-import type { JmriState, Throttle, RosterEntry, Direction } from '@/types/jmri'
+import type { JmriState, Throttle, RosterEntry, Direction, ThrottleFunction } from '@/types/jmri'
 
 import { JmriClient, PowerState } from 'jmri-client'
 
@@ -149,10 +149,20 @@ export function useJmri() {
       const functionUpdates: Record<string, any> = {}
       for (const key in data) {
         if (key.match(/^F\d+$/)) {
-          // Convert boolean to function object format if needed
-          functionUpdates[key] = typeof data[key] === 'boolean'
-            ? { value: data[key], label: key, lockable: false }
-            : data[key]
+          // Preserve existing label and lockable, only update value
+          const existingFn = existing.functions[key]
+          if (existingFn) {
+            functionUpdates[key] = {
+              ...existingFn,
+              value: typeof data[key] === 'boolean' ? data[key] : data[key].value || false
+            }
+          } else if (typeof data[key] === 'boolean') {
+            // New function not in our list - use function key as label
+            functionUpdates[key] = { value: data[key], label: key, lockable: false }
+          } else {
+            // New function with full object
+            functionUpdates[key] = data[key]
+          }
         }
       }
 
@@ -295,6 +305,7 @@ export function useJmri() {
 
       // Process roster entries (don't acquire yet)
       for (const entry of roster) {
+        logger.debug('Roster entry raw data:', entry)
         const address = entry.data?.address || entry.address
         // Convert WebSocket protocol to HTTP for image URLs
         const httpProtocol = config.jmri.protocol === 'wss' ? 'https' : 'http'
@@ -302,12 +313,32 @@ export function useJmri() {
           ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.data.name)}/icon?maxHeight=200`
           : undefined
 
+        // Extract function keys from roster entry
+        // JMRI returns functionKeys as an array: [{ name: "F0", label: "headlight", ... }]
+        const functionKeysArray = entry.data?.functionKeys || []
+        const functionKeys: Record<string, string> = {}
+
+        // Convert array to object, only including functions with labels
+        for (const fn of functionKeysArray) {
+          if (fn.label && fn.name) {
+            functionKeys[fn.name] = fn.label
+          }
+        }
+
+        // Always include F0 as Headlight if not defined
+        if (!functionKeys.F0) {
+          functionKeys.F0 = 'Headlight'
+        }
+
+        logger.debug(`Function keys for ${entry.data?.name}:`, functionKeys)
+
         const rosterEntry: RosterEntry = {
           address,
           name: entry.data?.name || `Loco ${address}`,
           road: entry.data?.road || '',
           number: entry.data?.number || '',
-          thumbnailUrl
+          thumbnailUrl,
+          functionKeys
         }
         jmriState.value.roster.set(address, rosterEntry)
       }
@@ -340,12 +371,27 @@ export function useJmri() {
       throttleIds.set(address, throttleId)
       logger.debug(`Acquired throttle ID: ${throttleId}`)
 
+      // Initialize functions from roster entry's functionKeys
+      const functions: Record<string, ThrottleFunction> = {}
+      logger.debug(`Initializing functions for ${rosterEntry.name} with functionKeys:`, rosterEntry.functionKeys)
+      if (rosterEntry.functionKeys) {
+        for (const [key, label] of Object.entries(rosterEntry.functionKeys)) {
+          functions[key] = {
+            label,
+            lockable: false,
+            value: false
+          }
+          logger.debug(`  Added function ${key}: ${label}`)
+        }
+      }
+      logger.debug(`Total functions initialized:`, Object.keys(functions).length)
+
       // Create throttle from roster entry
       const throttle: Throttle = {
         ...rosterEntry,
         speed: 0,
         direction: true, // Direction.FORWARD
-        functions: {}
+        functions
       }
       jmriState.value.throttles.set(address, throttle)
     } catch (error) {

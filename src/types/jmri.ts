@@ -12,6 +12,7 @@ export interface RosterEntry {
   number: string;
   imageUrl?: string;
   thumbnailUrl?: string;
+  functionKeys?: Record<string, string>; // e.g., { "F0": "Headlight", "F1": "Bell" }
 }
 
 export interface Throttle extends RosterEntry {

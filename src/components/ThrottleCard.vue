@@ -60,16 +60,24 @@
         </button>
       </div>
 
-      <!-- Headlight button (F0) -->
-      <div class="mb-3">
-        <button
-          class="btn"
-          :class="headlightOn ? 'btn-warning' : 'btn-outline-secondary'"
-          @click="toggleHeadlight"
-          :disabled="controlsDisabled"
-        >
-          <i class="fas fa-lightbulb"></i> Headlight
-        </button>
+      <!-- Function buttons -->
+      <div class="mb-3" v-if="functionButtons.length > 0">
+        <div class="row g-2">
+          <div
+            v-for="fn in functionButtons"
+            :key="fn.key"
+            class="col-6"
+          >
+            <button
+              class="btn w-100"
+              :class="fn.value ? 'btn-warning' : 'btn-outline-secondary'"
+              @click="toggleFunction(fn.key)"
+              :disabled="controlsDisabled"
+            >
+              <i :class="getFunctionIcon(fn.key)"></i> {{ fn.label }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Release button -->
@@ -119,9 +127,25 @@ const imageSrc = computed(() => {
   return props.throttle.thumbnailUrl
 })
 
-// Compute headlight state from F0
-const headlightOn = computed(() => {
-  return props.throttle.functions['F0']?.value || false
+// Compute function buttons list (sorted by function number)
+const functionButtons = computed(() => {
+  const buttons = Object.entries(props.throttle.functions)
+    .map(([key, fn]) => {
+      // Extract function number from key like "F0", "F1"
+      const match = key.match(/^F(\d+)$/)
+      if (!match) return null
+
+      return {
+        key,
+        label: typeof fn.label === 'string' ? fn.label : key,
+        value: fn.value || false,
+        number: parseInt(match[1])
+      }
+    })
+    .filter((btn): btn is NonNullable<typeof btn> => btn !== null)
+
+  // Sort by function number
+  return buttons.sort((a, b) => a.number - b.number)
 })
 
 function onImageError() {
@@ -141,8 +165,36 @@ function stopThrottle() {
   setThrottleSpeed(props.throttle.address, 0)
 }
 
-function toggleHeadlight() {
-  setThrottleFunction(props.throttle.address, 0, !headlightOn.value)
+function toggleFunction(functionKey: string) {
+  const fn = props.throttle.functions[functionKey]
+  if (!fn) return
+
+  // Extract function number from key like "F0", "F1"
+  const match = functionKey.match(/^F(\d+)$/)
+  if (!match) {
+    console.error('Invalid function key format:', functionKey)
+    return
+  }
+
+  const functionNumber = parseInt(match[1])
+  setThrottleFunction(props.throttle.address, functionNumber, !fn.value)
+}
+
+function getFunctionIcon(functionKey: string): string {
+  const fn = props.throttle.functions[functionKey]
+  if (!fn || !fn.label || typeof fn.label !== 'string') return 'fas fa-circle'
+
+  // Map common function labels to icons
+  const label = fn.label.toLowerCase()
+  if (label.includes('headlight') || label.includes('light')) return 'fas fa-lightbulb'
+  if (label.includes('bell')) return 'fas fa-bell'
+  if (label.includes('horn') || label.includes('whistle')) return 'fas fa-bullhorn'
+  if (label.includes('steam')) return 'fas fa-cloud'
+  if (label.includes('brake')) return 'fas fa-hand-paper'
+  if (label.includes('coupler')) return 'fas fa-link'
+  if (label.includes('mars')) return 'fas fa-star'
+
+  return 'fas fa-circle'
 }
 
 async function onRelease() {
