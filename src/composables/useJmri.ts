@@ -57,7 +57,7 @@ export function useJmri() {
       },
       heartbeat: {
         enabled: true,
-        interval: 30000,
+        interval: 15000,
         timeout: 5000
       }
     })
