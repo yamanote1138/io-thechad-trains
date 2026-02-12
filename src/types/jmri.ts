@@ -19,6 +19,7 @@ export interface Throttle extends RosterEntry {
   speed: number;
   direction: Direction;
   functions: Record<string, ThrottleFunction>;
+  acquiredAt: number; // Timestamp when throttle was acquired
 }
 
 export interface ThrottleFunction {

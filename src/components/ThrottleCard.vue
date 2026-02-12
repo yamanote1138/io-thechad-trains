@@ -96,8 +96,8 @@ const isReleasing = ref(false)
 const isRamping = ref(false)
 const emergencyStop = ref(false)
 
-// Power level buttons: 0%, 20%, 40%, 60%, 80%, 100%
-const powerLevels = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+// Power level buttons: 0%, 10%, 20%, 40%, 60%, 80%, 100%
+const powerLevels = [0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 // Disable controls when not connected or power is off
 const controlsDisabled = computed(() => {
@@ -160,11 +160,11 @@ async function setPowerLevel(targetSpeed: number) {
     const interval = 150 // ms between updates - hardware-friendly
     const distance = Math.abs(targetSpeed - currentSpeed)
 
-    // Scale duration with distance: 20% change = 1s, 100% change = 5s
-    // This simulates realistic acceleration/deceleration with momentum
-    const baseDuration = 5000 // 5 seconds for full 0-100% range
-    const duration = Math.max(600, baseDuration * distance) // Min 600ms
-    const steps = Math.max(4, Math.ceil(duration / interval))
+    // Scale duration with distance - slower for model railroading realism
+    // Low speed operations (0-20%) should be very gradual to show inertia
+    const baseDuration = 8000 // 8 seconds for full 0-100% range
+    const duration = Math.max(800, baseDuration * distance) // Min 800ms
+    const steps = Math.max(5, Math.ceil(duration / interval))
 
     for (let i = 1; i <= steps; i++) {
       // Check for emergency stop
@@ -177,7 +177,7 @@ async function setPowerLevel(targetSpeed: number) {
       const t = i / steps
       // Use exponential easing for more natural feeling
       const eased = currentSpeed < targetSpeed
-        ? Math.pow(t, 0.5) // Ease out when accelerating (fast start, slow finish)
+        ? Math.pow(t, 5.0) // Very steep curve - slow start to overcome inertia
         : 1 - Math.pow(1 - t, 0.5) // Ease in when decelerating (slow start, fast finish)
 
       const speed = currentSpeed + (targetSpeed - currentSpeed) * eased
@@ -202,10 +202,13 @@ async function toggleDirection() {
   const currentSpeed = props.throttle.speed
   const newDirection = !props.throttle.direction
 
-  // If moving, ramp down to 0, switch direction, then ramp back up
+  // If moving, ramp down to 0, pause, switch direction, then ramp back up
   if (currentSpeed > 0) {
     // Ramp down to 0
     await setPowerLevel(0)
+
+    // Pause after stopping (realistic momentum/settling time)
+    await new Promise(resolve => setTimeout(resolve, 1800))
 
     // Switch direction
     await setThrottleDirection(props.throttle.address, newDirection)

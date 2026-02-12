@@ -7,7 +7,7 @@ Modern web-based control system for JMRI model railroad operations.
 - **Vue 3** - Composition API with TypeScript
 - **Vite** - Fast build tool
 - **Bootstrap 5** - Modern CSS framework
-- **jmri-client 3.0** - WebSocket-based JMRI communication
+- **jmri-client 3.5** - WebSocket-based JMRI communication
 
 ## Requirements
 

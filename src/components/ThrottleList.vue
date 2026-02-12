@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- All Locomotives -->
-    <div v-if="roster.length > 0">
+    <div v-if="sortedRoster.length > 0">
       <h4 class="text-light mb-1">
         <i class="fas fa-train"></i> Locomotives
       </h4>
@@ -10,7 +10,7 @@
       </p>
       <div class="row">
         <div
-          v-for="entry in roster"
+          v-for="entry in sortedRoster"
           :key="'loco-' + entry.address"
           class="col-12 col-lg-6 col-xxl-4"
         >
@@ -30,10 +30,35 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import { PowerState } from 'jmri-client'
 import ThrottleCard from './ThrottleCard.vue'
 import RosterCard from './RosterCard.vue'
 
 const { roster, jmriState, power } = useJmri()
+
+// Sort roster to show acquired throttles first (most recent at top)
+const sortedRoster = computed(() => {
+  return [...roster.value].sort((a, b) => {
+    const aAcquired = jmriState.value.throttles.has(a.address)
+    const bAcquired = jmriState.value.throttles.has(b.address)
+
+    // Both acquired - sort by most recent first
+    if (aAcquired && bAcquired) {
+      const aThrottle = jmriState.value.throttles.get(a.address)!
+      const bThrottle = jmriState.value.throttles.get(b.address)!
+      return bThrottle.acquiredAt - aThrottle.acquiredAt
+    }
+
+    // Only a acquired - a comes first
+    if (aAcquired) return -1
+
+    // Only b acquired - b comes first
+    if (bAcquired) return 1
+
+    // Neither acquired - maintain original roster order
+    return 0
+  })
+})
 </script>

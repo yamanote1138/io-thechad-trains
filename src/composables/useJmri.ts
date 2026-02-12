@@ -79,8 +79,9 @@ export function useJmri() {
     })
 
     jmriClient.on('hello', (data: any) => {
-      if (data?.Railroad) {
-        railroadName.value = data.Railroad
+      // JMRI server uses lowercase 'railroad'
+      if (data?.railroad) {
+        railroadName.value = data.railroad
         logger.info('Railroad name:', railroadName.value)
       }
     })
@@ -300,6 +301,9 @@ export function useJmri() {
 
   /**
    * Fetch roster from JMRI
+   *
+   * Note: JMRI servers return roster entries wrapped in {type, data, id} structure.
+   * Mock mode will be fixed to match this format: https://github.com/yamanote1138/jmri-client/issues/21
    */
   async function fetchRoster() {
     if (!jmriClient || !isConnected.value) {
@@ -313,28 +317,31 @@ export function useJmri() {
 
       // Process roster entries (don't acquire yet)
       for (const entry of roster) {
-        const address = parseInt(entry.address)
+        // JMRI server wraps entries in {type: "rosterEntry", data: {...}, id: number} structure
+        const entryData = entry.data
+
+        const address = parseInt(entryData.address)
         // Convert WebSocket protocol to HTTP for image URLs
         const httpProtocol = config.jmri.protocol === 'wss' ? 'https' : 'http'
-        const thumbnailUrl = entry.name
-          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.name)}/icon?maxHeight=200`
+
+        // Real server provides icon path
+        const thumbnailUrl = entryData.icon
+          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}${entryData.icon}`
+          : entryData.name
+          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
           : undefined
 
         // Extract function keys from roster entry
         // JMRI v5.x returns functionKeys as an array: [{ name: "F0", label: "headlight", lockable: true, ... }]
-        const rawFunctionKeys = entry.functionKeys
+        const rawFunctionKeys = entryData.functionKeys
         const functionKeys: Record<string, string> = {}
 
         if (Array.isArray(rawFunctionKeys)) {
-          // New array format (v3.3.1+)
           for (const fn of rawFunctionKeys) {
             if (fn.label && fn.name) {
               functionKeys[fn.name] = fn.label
             }
           }
-        } else if (rawFunctionKeys && typeof rawFunctionKeys === 'object') {
-          // Old object format (legacy - shouldn't happen in v3.3.2+)
-          Object.assign(functionKeys, rawFunctionKeys)
         }
 
         // Always include F0 as Headlight if not defined
@@ -342,13 +349,13 @@ export function useJmri() {
           functionKeys.F0 = 'Headlight'
         }
 
-        logger.debug(`Function keys for ${entry.name}:`, functionKeys)
+        logger.debug(`Function keys for ${entryData.name}:`, functionKeys)
 
         const rosterEntry: RosterEntry = {
           address,
-          name: entry.name || `Loco ${address}`,
-          road: entry.road || '',
-          number: entry.number || '',
+          name: entryData.name || `Loco ${address}`,
+          road: entryData.road || '',
+          number: entryData.number || '',
           thumbnailUrl,
           functionKeys
         }
@@ -403,7 +410,8 @@ export function useJmri() {
         ...rosterEntry,
         speed: 0,
         direction: true, // Direction.FORWARD
-        functions
+        functions,
+        acquiredAt: Date.now()
       }
       jmriState.value.throttles.set(address, throttle)
     } catch (error) {
