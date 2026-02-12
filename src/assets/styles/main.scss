@@ -61,19 +61,6 @@ h1, h2, h3 {
   .display-4 {
     font-size: 2rem;
   }
-
-  .btn-group {
-    flex-direction: column;
-
-    .btn {
-      border-radius: 0.375rem !important;
-      margin-bottom: 0.5rem;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-    }
-  }
 }
 
 // Dark theme overrides

@@ -3,13 +3,21 @@
     <div class="card-body">
       <h5 class="card-title">Track Power</h5>
       <button
-        class="btn btn-lg"
+        class="btn btn-lg w-100 mb-2"
         :class="buttonClass"
         @click="togglePower"
         :disabled="!isConnected || isBusy"
       >
         <i class="fas" :class="buttonIcon"></i>
         {{ buttonText }}
+      </button>
+      <button
+        class="btn btn-warning w-100"
+        @click="releaseAll"
+        :disabled="!isConnected || isReleasing"
+      >
+        <i class="fas fa-eject"></i>
+        {{ isReleasing ? 'Releasing...' : 'Release All Throttles' }}
       </button>
     </div>
   </div>
@@ -20,8 +28,9 @@ import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import { PowerState, powerStateToString } from 'jmri-client'
 
-const { power, isConnected, setPower } = useJmri()
+const { power, isConnected, setPower, releaseAllThrottles } = useJmri()
 const isBusy = ref(false)
+const isReleasing = ref(false)
 
 const buttonClass = computed(() => {
   if (power.value === PowerState.ON) return 'btn-success'
@@ -57,6 +66,17 @@ async function togglePower() {
   } finally {
     isBusy.value = false
     console.log('=== POWER BUTTON DONE ===')
+  }
+}
+
+async function releaseAll() {
+  isReleasing.value = true
+  try {
+    await releaseAllThrottles()
+  } catch (error) {
+    console.error('Error releasing all throttles:', error)
+  } finally {
+    isReleasing.value = false
   }
 }
 </script>

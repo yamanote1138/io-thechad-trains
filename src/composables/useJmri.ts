@@ -18,6 +18,7 @@ const jmriState = ref<JmriState>({
 })
 
 const isConnected = ref(false)
+const railroadName = ref<string>('Model Railroad')
 let jmriClient: any = null
 const throttleIds = new Map<number, string>() // address -> throttleId mapping
 
@@ -56,7 +57,7 @@ export function useJmri() {
         jitter: true
       },
       heartbeat: {
-        enabled: true,
+        enabled: !config.jmri.mock.enabled, // Disable in mock mode
         interval: 15000,
         timeout: 5000
       }
@@ -74,6 +75,13 @@ export function useJmri() {
         logger.info('Initial power state:', powerState === PowerState.ON ? 'ON' : powerState === PowerState.OFF ? 'OFF' : 'UNKNOWN')
       } catch (error) {
         logger.error('Failed to get initial power state:', error)
+      }
+    })
+
+    jmriClient.on('hello', (data: any) => {
+      if (data?.Railroad) {
+        railroadName.value = data.Railroad
+        logger.info('Railroad name:', railroadName.value)
       }
     })
 
@@ -305,24 +313,28 @@ export function useJmri() {
 
       // Process roster entries (don't acquire yet)
       for (const entry of roster) {
-        logger.debug('Roster entry raw data:', entry)
-        const address = entry.data?.address || entry.address
+        const address = parseInt(entry.address)
         // Convert WebSocket protocol to HTTP for image URLs
         const httpProtocol = config.jmri.protocol === 'wss' ? 'https' : 'http'
-        const thumbnailUrl = entry.data?.name
-          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.data.name)}/icon?maxHeight=200`
+        const thumbnailUrl = entry.name
+          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entry.name)}/icon?maxHeight=200`
           : undefined
 
         // Extract function keys from roster entry
-        // JMRI returns functionKeys as an array: [{ name: "F0", label: "headlight", ... }]
-        const functionKeysArray = entry.data?.functionKeys || []
+        // JMRI v5.x returns functionKeys as an array: [{ name: "F0", label: "headlight", lockable: true, ... }]
+        const rawFunctionKeys = entry.functionKeys
         const functionKeys: Record<string, string> = {}
 
-        // Convert array to object, only including functions with labels
-        for (const fn of functionKeysArray) {
-          if (fn.label && fn.name) {
-            functionKeys[fn.name] = fn.label
+        if (Array.isArray(rawFunctionKeys)) {
+          // New array format (v3.3.1+)
+          for (const fn of rawFunctionKeys) {
+            if (fn.label && fn.name) {
+              functionKeys[fn.name] = fn.label
+            }
           }
+        } else if (rawFunctionKeys && typeof rawFunctionKeys === 'object') {
+          // Old object format (legacy - shouldn't happen in v3.3.2+)
+          Object.assign(functionKeys, rawFunctionKeys)
         }
 
         // Always include F0 as Headlight if not defined
@@ -330,13 +342,13 @@ export function useJmri() {
           functionKeys.F0 = 'Headlight'
         }
 
-        logger.debug(`Function keys for ${entry.data?.name}:`, functionKeys)
+        logger.debug(`Function keys for ${entry.name}:`, functionKeys)
 
         const rosterEntry: RosterEntry = {
           address,
-          name: entry.data?.name || `Loco ${address}`,
-          road: entry.data?.road || '',
-          number: entry.data?.number || '',
+          name: entry.name || `Loco ${address}`,
+          road: entry.road || '',
+          number: entry.number || '',
           thumbnailUrl,
           functionKeys
         }
@@ -401,6 +413,51 @@ export function useJmri() {
   }
 
   /**
+   * Set throttle to idle (speed to 0, maintain direction)
+   */
+  async function idleThrottle(address: number) {
+    if (!jmriClient || !isConnected.value) {
+      logger.error('Cannot idle throttle: JMRI client not connected')
+      return
+    }
+
+    const throttleId = throttleIds.get(address)
+    if (!throttleId) {
+      logger.error(`No throttle acquired for address ${address}`)
+      return
+    }
+
+    try {
+      logger.debug(`Setting throttle ${address} to idle`)
+      await jmriClient.idleThrottle(throttleId)
+    } catch (error) {
+      logger.error('Failed to idle throttle:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Release all acquired throttles
+   */
+  async function releaseAllThrottles() {
+    if (!jmriClient || !isConnected.value) {
+      logger.error('Cannot release throttles: JMRI client not connected')
+      return
+    }
+
+    try {
+      logger.info('Releasing all throttles')
+      await jmriClient.releaseAllThrottles()
+      throttleIds.clear()
+      jmriState.value.throttles.clear()
+      logger.info('All throttles released successfully')
+    } catch (error) {
+      logger.error('Failed to release all throttles:', error)
+      throw error
+    }
+  }
+
+  /**
    * Release a throttle
    */
   async function releaseThrottle(address: number) {
@@ -444,6 +501,7 @@ export function useJmri() {
     // State
     jmriState,
     isConnected,
+    railroadName,
 
     // Computed
     roster: computed(() => Array.from(jmriState.value.roster.values())),
@@ -458,6 +516,8 @@ export function useJmri() {
     setThrottleFunction,
     fetchRoster,
     acquireThrottle,
-    releaseThrottle
+    idleThrottle,
+    releaseThrottle,
+    releaseAllThrottles
   }
 }

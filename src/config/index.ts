@@ -9,9 +9,6 @@ export const config = {
       responseDelay: parseInt(import.meta.env.VITE_JMRI_MOCK_DELAY) || 50,
     },
   },
-  app: {
-    title: import.meta.env.VITE_APP_TITLE || 'Trains Over the Interwebs',
-  },
 } as const
 
 // Computed WebSocket URL

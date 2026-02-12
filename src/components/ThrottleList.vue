@@ -1,39 +1,25 @@
 <template>
   <div>
-    <!-- Acquired Throttles Section -->
-    <div v-if="throttles.length > 0" class="mb-4">
+    <!-- All Locomotives -->
+    <div v-if="roster.length > 0">
       <h4 class="text-light mb-3">
-        <i class="fas fa-gamepad"></i> Active Throttles
+        <i class="fas fa-train"></i> Locomotives
       </h4>
       <div class="row">
         <div
-          v-for="throttle in throttles"
-          :key="'throttle-' + throttle.address"
+          v-for="entry in roster"
+          :key="'loco-' + entry.address"
           class="col-12 col-lg-6 col-xxl-4"
         >
-          <ThrottleCard :throttle="throttle" />
-        </div>
-      </div>
-    </div>
-
-    <!-- Available Roster Section -->
-    <div v-if="availableRoster.length > 0">
-      <h4 class="text-light mb-3">
-        <i class="fas fa-list"></i> Available Locomotives
-      </h4>
-      <div class="row">
-        <div
-          v-for="entry in availableRoster"
-          :key="'roster-' + entry.address"
-          class="col-12 col-lg-6 col-xxl-4"
-        >
-          <RosterCard :entry="entry" />
+          <!-- Show ThrottleCard if acquired, otherwise RosterCard -->
+          <ThrottleCard v-if="jmriState.throttles.has(entry.address)" :throttle="jmriState.throttles.get(entry.address)!" />
+          <RosterCard v-else :entry="entry" />
         </div>
       </div>
     </div>
 
     <!-- Empty State -->
-    <div v-if="roster.length === 0" class="alert alert-info">
+    <div v-else class="alert alert-info">
       <i class="fas fa-info-circle"></i>
       No locomotives loaded. Make sure JMRI is running and has locomotives in the roster.
     </div>
@@ -41,15 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import ThrottleCard from './ThrottleCard.vue'
 import RosterCard from './RosterCard.vue'
 
-const { roster, throttles, jmriState } = useJmri()
-
-// Compute available roster entries (not yet acquired)
-const availableRoster = computed(() => {
-  return roster.value.filter(entry => !jmriState.value.throttles.has(entry.address))
-})
+const { roster, jmriState } = useJmri()
 </script>

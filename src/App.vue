@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="row mb-4">
         <div class="col">
-          <h1 class="display-4">{{ appTitle }}</h1>
+          <h1 class="display-4">{{ railroadName }}</h1>
           <p class="lead text-muted">Model Railroad Control System</p>
         </div>
       </div>
@@ -22,15 +22,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useJmri } from '@/composables/useJmri'
-import { config } from '@/config'
 import StatusBar from '@/components/StatusBar.vue'
 import PowerControl from '@/components/PowerControl.vue'
 import ThrottleList from '@/components/ThrottleList.vue'
 
-const appTitle = config.app.title
-const { fetchRoster, isConnected } = useJmri()
+const { fetchRoster, isConnected, railroadName } = useJmri()
+
+// Update page title when railroad name changes
+watch(railroadName, (newName) => {
+  document.title = newName
+}, { immediate: true })
 
 onMounted(async () => {
   // Wait for connection before fetching

@@ -21,42 +21,38 @@
       <!-- Speed control -->
       <div class="mb-3">
         <label class="form-label">Speed: {{ Math.round(throttle.speed * 100) }}%</label>
-        <input
-          type="range"
-          class="form-range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="throttle.speed"
-          @change="onSpeedChange"
-          :disabled="controlsDisabled"
-        >
+        <div class="btn-group w-100 gap-1" role="group" aria-label="Speed control">
+          <button
+            v-for="level in powerLevels"
+            :key="level"
+            class="btn"
+            :class="throttle.speed >= level ? 'btn-warning' : 'btn-secondary'"
+            @click="setPowerLevel(level)"
+            :disabled="controlsDisabled || isRamping"
+          >
+            &nbsp;
+          </button>
+        </div>
       </div>
 
-      <!-- Direction buttons -->
-      <div class="btn-group w-100 mb-3">
+      <!-- Direction and Stop buttons -->
+      <div class="btn-group w-100 mb-3" role="group" aria-label="Direction and stop controls">
         <button
-          class="btn"
-          :class="throttle.direction === false ? 'btn-primary' : 'btn-outline-secondary'"
-          @click="setDirection(false)"
+          type="button"
+          class="btn btn-primary col"
+          @click="toggleDirection"
           :disabled="controlsDisabled"
         >
-          <i class="fas fa-arrow-down"></i> Reverse
+          <i :class="throttle.direction ? 'fas fa-arrow-right' : 'fas fa-arrow-left'"></i>
+          {{ throttle.direction ? 'Forward' : 'Reverse' }}
         </button>
         <button
-          class="btn btn-danger"
+          type="button"
+          class="btn btn-danger col"
           @click="stopThrottle"
           :disabled="controlsDisabled"
         >
           <i class="fas fa-stop"></i> Stop
-        </button>
-        <button
-          class="btn"
-          :class="throttle.direction === true ? 'btn-primary' : 'btn-outline-secondary'"
-          @click="setDirection(true)"
-          :disabled="controlsDisabled"
-        >
-          <i class="fas fa-arrow-up"></i> Forward
         </button>
       </div>
 
@@ -107,6 +103,11 @@ const props = defineProps<{
 const { isConnected, power, setThrottleSpeed, setThrottleDirection, setThrottleFunction, releaseThrottle } = useJmri()
 
 const isReleasing = ref(false)
+const isRamping = ref(false)
+const emergencyStop = ref(false)
+
+// Power level buttons: 0%, 20%, 40%, 60%, 80%, 100%
+const powerLevels = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 // Disable controls when not connected or power is off
 const controlsDisabled = computed(() => {
@@ -152,16 +153,85 @@ function onImageError() {
   imageLoadFailed.value = true
 }
 
-function onSpeedChange(event: Event) {
-  const speed = parseFloat((event.target as HTMLInputElement).value)
-  setThrottleSpeed(props.throttle.address, speed)
+/**
+ * Set power level with smooth logarithmic ramping
+ * Duration scales with distance to simulate realistic momentum and inertia
+ */
+async function setPowerLevel(targetSpeed: number) {
+  if (isRamping.value) return
+
+  const currentSpeed = props.throttle.speed
+  if (currentSpeed === targetSpeed) return
+
+  emergencyStop.value = false
+  isRamping.value = true
+
+  try {
+    const interval = 150 // ms between updates - hardware-friendly
+    const distance = Math.abs(targetSpeed - currentSpeed)
+
+    // Scale duration with distance: 20% change = 1s, 100% change = 5s
+    // This simulates realistic acceleration/deceleration with momentum
+    const baseDuration = 5000 // 5 seconds for full 0-100% range
+    const duration = Math.max(600, baseDuration * distance) // Min 600ms
+    const steps = Math.max(4, Math.ceil(duration / interval))
+
+    for (let i = 1; i <= steps; i++) {
+      // Check for emergency stop
+      if (emergencyStop.value) {
+        await setThrottleSpeed(props.throttle.address, 0)
+        break
+      }
+
+      // Logarithmic interpolation for smooth acceleration/deceleration
+      const t = i / steps
+      // Use exponential easing for more natural feeling
+      const eased = currentSpeed < targetSpeed
+        ? Math.pow(t, 0.5) // Ease out when accelerating (fast start, slow finish)
+        : 1 - Math.pow(1 - t, 0.5) // Ease in when decelerating (slow start, fast finish)
+
+      const speed = currentSpeed + (targetSpeed - currentSpeed) * eased
+      await setThrottleSpeed(props.throttle.address, speed)
+
+      // Don't wait after the last step
+      if (i < steps) {
+        await new Promise(resolve => setTimeout(resolve, interval))
+      }
+    }
+
+    // Ensure we hit the exact target (unless emergency stopped)
+    if (!emergencyStop.value) {
+      await setThrottleSpeed(props.throttle.address, targetSpeed)
+    }
+  } finally {
+    isRamping.value = false
+  }
 }
 
-function setDirection(direction: Direction) {
-  setThrottleDirection(props.throttle.address, direction)
+async function toggleDirection() {
+  const currentSpeed = props.throttle.speed
+  const newDirection = !props.throttle.direction
+
+  // If moving, ramp down to 0, switch direction, then ramp back up
+  if (currentSpeed > 0) {
+    // Ramp down to 0
+    await setPowerLevel(0)
+
+    // Switch direction
+    await setThrottleDirection(props.throttle.address, newDirection)
+
+    // Ramp back up to previous speed
+    await setPowerLevel(currentSpeed)
+  } else {
+    // If stopped, just switch direction
+    await setThrottleDirection(props.throttle.address, newDirection)
+  }
 }
 
 function stopThrottle() {
+  // Set emergency stop flag to interrupt any ongoing ramping
+  emergencyStop.value = true
+  // Immediately set speed to 0
   setThrottleSpeed(props.throttle.address, 0)
 }
 
