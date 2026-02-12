@@ -437,6 +437,31 @@ export function useJmri() {
   }
 
   /**
+   * Stop all acquired throttles (set speed to 0)
+   */
+  async function stopAllThrottles() {
+    if (!jmriClient || !isConnected.value) {
+      logger.error('Cannot stop throttles: JMRI client not connected')
+      return
+    }
+
+    try {
+      logger.info('Stopping all throttles')
+      const addresses = Array.from(jmriState.value.throttles.keys())
+      for (const address of addresses) {
+        const throttleId = throttleIds.get(address)
+        if (throttleId) {
+          await jmriClient.setThrottleSpeed(throttleId, 0)
+        }
+      }
+      logger.info('All throttles stopped successfully')
+    } catch (error) {
+      logger.error('Failed to stop all throttles:', error)
+      throw error
+    }
+  }
+
+  /**
    * Release all acquired throttles
    */
   async function releaseAllThrottles() {
@@ -518,6 +543,7 @@ export function useJmri() {
     acquireThrottle,
     idleThrottle,
     releaseThrottle,
+    stopAllThrottles,
     releaseAllThrottles
   }
 }

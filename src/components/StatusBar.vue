@@ -1,12 +1,10 @@
 <template>
-  <div class="alert mb-3" :class="isConnected ? 'alert-success' : 'alert-danger'">
+  <div class="alert alert-sm mb-2 py-2" :class="isConnected ? 'alert-success' : 'alert-danger'">
     <i class="fas" :class="isConnected ? 'fa-plug' : 'fa-plug-circle-xmark'"></i>
-    {{ isConnected ? 'Connected to JMRI' : 'Disconnected from JMRI' }}
-    <span v-if="isMockMode" class="badge bg-warning text-dark ms-2">
-      <i class="fas fa-flask"></i> Mock Mode
-    </span>
+    {{ isConnected ? 'Connected' : 'Disconnected' }}
+    <span v-if="isMockMode" class="badge bg-warning text-dark ms-2">Mock</span>
     <span v-if="!isConnected" class="ms-2">
-      <small>Attempting to reconnect...</small>
+      <small>Reconnecting...</small>
     </span>
   </div>
 </template>

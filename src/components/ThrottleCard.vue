@@ -6,15 +6,19 @@
         <img
           :src="imageSrc"
           :alt="throttle.name"
-          class="me-3"
-          style="width: 100px; height: 100px; object-fit: cover;"
+          class="loco-thumbnail me-3"
+          :class="{ 'disabled': !isConnected || isReleasing }"
           @error="onImageError"
+          @click="isConnected && !isReleasing && onRelease()"
         >
         <div>
           <h5 class="card-title mb-0">{{ throttle.name }}</h5>
           <small class="text-muted" v-if="throttle.road || throttle.number">
             {{ throttle.road }} {{ throttle.number ? `#${throttle.number}` : '' }}
           </small>
+          <div v-if="isReleasing" class="text-danger small mt-1">
+            <i class="fas fa-spinner fa-spin"></i> Releasing...
+          </div>
         </div>
       </div>
 
@@ -57,34 +61,20 @@
       </div>
 
       <!-- Function buttons -->
-      <div class="mb-3" v-if="functionButtons.length > 0">
-        <div class="row g-2">
-          <div
-            v-for="fn in functionButtons"
-            :key="fn.key"
-            class="col-6"
-          >
-            <button
-              class="btn w-100"
-              :class="fn.value ? 'btn-warning' : 'btn-outline-secondary'"
-              @click="toggleFunction(fn.key)"
-              :disabled="controlsDisabled"
-            >
-              <i :class="getFunctionIcon(fn.key)"></i> {{ fn.label }}
-            </button>
-          </div>
-        </div>
+      <div v-if="functionButtons.length > 0" class="btn-group w-100 flex-wrap" role="group">
+        <button
+          v-for="fn in functionButtons"
+          :key="fn.key"
+          class="btn"
+          :class="fn.value ? 'btn-warning' : 'btn-outline-secondary'"
+          @click="toggleFunction(fn.key)"
+          :disabled="controlsDisabled"
+          :title="fn.label"
+        >
+          <i :class="getFunctionIcon(fn.key)"></i>
+          <span class="d-none d-sm-inline ms-1">{{ fn.label }}</span>
+        </button>
       </div>
-
-      <!-- Release button -->
-      <button
-        class="btn btn-outline-danger w-100"
-        @click="onRelease"
-        :disabled="!isConnected || isReleasing"
-      >
-        <i class="fas fa-times-circle"></i>
-        {{ isReleasing ? 'Releasing...' : 'Release Throttle' }}
-      </button>
     </div>
   </div>
 </template>
@@ -276,3 +266,38 @@ async function onRelease() {
   }
 }
 </script>
+
+<style scoped>
+.loco-thumbnail {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  cursor: pointer;
+  border-radius: 0.375rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+@media (min-width: 576px) {
+  .loco-thumbnail {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+@media (min-width: 992px) {
+  .loco-thumbnail {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+.loco-thumbnail:hover:not(.disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.loco-thumbnail.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+</style>

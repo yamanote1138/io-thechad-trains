@@ -1,25 +1,33 @@
 <template>
-  <div class="card bg-dark text-light mb-3">
-    <div class="card-body">
-      <h5 class="card-title">Track Power</h5>
-      <button
-        class="btn btn-lg w-100 mb-2"
-        :class="buttonClass"
-        @click="togglePower"
-        :disabled="!isConnected || isBusy"
-      >
-        <i class="fas" :class="buttonIcon"></i>
-        {{ buttonText }}
-      </button>
-      <button
-        class="btn btn-warning w-100"
-        @click="releaseAll"
-        :disabled="!isConnected || isReleasing"
-      >
-        <i class="fas fa-eject"></i>
-        {{ isReleasing ? 'Releasing...' : 'Release All Throttles' }}
-      </button>
-    </div>
+  <div class="btn-group w-100 mb-3" role="group">
+    <button
+      class="btn"
+      :class="buttonClass"
+      @click="togglePower"
+      :disabled="!isConnected || isBusy"
+      :title="buttonText"
+    >
+      <i class="fas" :class="buttonIcon"></i>
+      <span class="d-none d-sm-inline ms-1">{{ buttonText }}</span>
+    </button>
+    <button
+      class="btn btn-danger"
+      @click="stopAll"
+      :disabled="!isConnected || isStopping || throttles.length === 0"
+      :title="isStopping ? 'Stopping...' : 'Stop All'"
+    >
+      <i class="fas fa-stop"></i>
+      <span class="d-none d-sm-inline ms-1">{{ isStopping ? 'Stopping...' : 'Stop All' }}</span>
+    </button>
+    <button
+      class="btn btn-warning"
+      @click="releaseAll"
+      :disabled="!isConnected || isReleasing || throttles.length === 0"
+      :title="isReleasing ? 'Releasing...' : 'Release All'"
+    >
+      <i class="fas fa-eject"></i>
+      <span class="d-none d-sm-inline ms-1">{{ isReleasing ? 'Releasing...' : 'Release All' }}</span>
+    </button>
   </div>
 </template>
 
@@ -28,8 +36,9 @@ import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import { PowerState, powerStateToString } from 'jmri-client'
 
-const { power, isConnected, setPower, releaseAllThrottles } = useJmri()
+const { power, isConnected, setPower, stopAllThrottles, releaseAllThrottles, throttles } = useJmri()
 const isBusy = ref(false)
+const isStopping = ref(false)
 const isReleasing = ref(false)
 
 const buttonClass = computed(() => {
@@ -66,6 +75,17 @@ async function togglePower() {
   } finally {
     isBusy.value = false
     console.log('=== POWER BUTTON DONE ===')
+  }
+}
+
+async function stopAll() {
+  isStopping.value = true
+  try {
+    await stopAllThrottles()
+  } catch (error) {
+    console.error('Error stopping all throttles:', error)
+  } finally {
+    isStopping.value = false
   }
 }
 

@@ -1,16 +1,11 @@
 <template>
   <div class="min-vh-100 bg-dark text-light">
-    <div class="container-fluid py-4">
-      <!-- Header -->
-      <div class="row mb-4">
-        <div class="col">
-          <h1 class="display-4">{{ railroadName }}</h1>
-          <p class="lead text-muted">Model Railroad Control System</p>
-        </div>
-      </div>
-
-      <!-- Status Bar -->
+    <div class="container-fluid py-3">
+      <!-- Status Banner -->
       <StatusBar />
+
+      <!-- Header -->
+      <h1 class="display-6 mb-3">{{ railroadName }}</h1>
 
       <!-- Power Control -->
       <PowerControl />

@@ -2,9 +2,12 @@
   <div>
     <!-- All Locomotives -->
     <div v-if="roster.length > 0">
-      <h4 class="text-light mb-3">
+      <h4 class="text-light mb-1">
         <i class="fas fa-train"></i> Locomotives
       </h4>
+      <p v-if="power === PowerState.ON" class="text-muted small mb-3">
+        <i class="fas fa-info-circle"></i> Click locomotive image to acquire or release throttle
+      </p>
       <div class="row">
         <div
           v-for="entry in roster"
@@ -28,8 +31,9 @@
 
 <script setup lang="ts">
 import { useJmri } from '@/composables/useJmri'
+import { PowerState } from 'jmri-client'
 import ThrottleCard from './ThrottleCard.vue'
 import RosterCard from './RosterCard.vue'
 
-const { roster, jmriState } = useJmri()
+const { roster, jmriState, power } = useJmri()
 </script>
