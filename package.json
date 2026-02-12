@@ -1,6 +1,6 @@
 {
   "name": "io-thechad-trains",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "type": "module",
   "private": true,
   "engines": {
@@ -15,7 +15,7 @@
   "dependencies": {
     "bootstrap": "^5.3.3",
     "events": "^3.3.0",
-    "jmri-client": "^3.4.1",
+    "jmri-client": "^3.5.1",
     "vue": "^3.5.13"
   },
   "devDependencies": {
