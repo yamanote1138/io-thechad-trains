@@ -117,7 +117,8 @@ export function useJmri() {
     })
 
     jmriClient.on('heartbeat:timeout', () => {
-      logger.warn('JMRI heartbeat timeout - connection may be dead')
+      logger.warn('JMRI heartbeat timeout - connection lost')
+      isConnected.value = false
     })
 
     jmriClient.on('connectionStateChanged', (state: any) => {
