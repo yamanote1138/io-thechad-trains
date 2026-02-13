@@ -6,7 +6,7 @@
       disabled
       :title="statusText"
     >
-      <i class="fas" :class="isConnected ? 'fa-plug' : 'fa-plug-circle-xmark'"></i>
+      <i class="fas" :class="isConnected.value ? 'fa-plug' : 'fa-plug-circle-xmark'"></i>
     </button>
     <button
       v-if="isMockMode"
@@ -130,17 +130,17 @@ async function releaseAll() {
 </script>
 
 <style scoped>
-/* Status indicator with alert colors */
+/* Status indicator with bright, clear colors */
 .status-indicator.btn-success {
-  background-color: #d1e7dd;
-  border-color: #badbcc;
-  color: #0f5132;
+  background-color: #28a745;
+  border-color: #28a745;
+  color: #ffffff;
 }
 
 .status-indicator.btn-danger {
-  background-color: #f8d7da;
-  border-color: #f5c2c7;
-  color: #842029;
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: #ffffff;
 }
 
 /* Smaller buttons on mobile for vertical space savings */
