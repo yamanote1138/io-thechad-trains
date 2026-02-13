@@ -14,7 +14,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 20+** required
 
 ### Current Version
-v3.2.0 - Latest improvements include JMRI server compatibility fixes and mobile-first UI enhancements.
+v3.3.0 - Latest improvements include mobile-first UI refinements, component consolidation, and sticky header controls.
 
 ## Architecture Principles
 
@@ -182,6 +182,34 @@ v3.2.0 - Latest improvements include JMRI server compatibility fixes and mobile-
    - Update `package.json` version for releases
    - Update README.md if jmri-client version changes significantly
    - Keep versioning consistent across the project
+
+5. **Using GitHub CLI (gh)**
+   - **ALWAYS use `gh` for releases** instead of manual GitHub UI
+   - Workflow for new releases:
+     ```bash
+     # 1. Commit all changes
+     git add src/ CLAUDE.md
+     git commit -m "Descriptive commit message"
+
+     # 2. Bump version in package.json and commit
+     # Edit package.json version
+     git add package.json
+     git commit -m "Release vX.Y.Z: Brief description"
+
+     # 3. Create annotated tag
+     git tag -a vX.Y.Z -m "Release vX.Y.Z: Brief description"
+
+     # 4. Push commits and tags
+     git push && git push --tags
+
+     # 5. Create GitHub release with detailed notes
+     gh release create vX.Y.Z --title "vX.Y.Z: Title" --notes "Release notes..."
+     ```
+   - Release notes should include:
+     - Summary of changes by category
+     - Breaking changes (if any)
+     - Full changelog link
+   - Use `gh pr` commands for pull request operations when needed
 
 ### Code Quality
 
