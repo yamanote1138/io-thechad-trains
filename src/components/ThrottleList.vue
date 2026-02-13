@@ -5,8 +5,8 @@
       <h4 class="text-light mb-1">
         <i class="fas fa-train"></i> Locomotives
       </h4>
-      <p v-if="power === PowerState.ON" class="text-muted small mb-3">
-        <i class="fas fa-info-circle"></i> Click locomotive image to acquire or release throttle
+      <p v-if="power === PowerState.ON" class="text-muted mb-2" style="font-size: 0.75rem;">
+        <i class="fas fa-hand-pointer"></i> Tap to acquire/release
       </p>
       <div class="row">
         <div

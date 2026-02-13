@@ -1,5 +1,21 @@
 <template>
-  <div class="btn-group w-100 mb-3" role="group">
+  <div class="btn-group w-100 mb-2 mb-sm-3" role="group">
+    <button
+      class="btn btn-sm status-indicator"
+      :class="statusClass"
+      disabled
+      :title="statusText"
+    >
+      <i class="fas" :class="isConnected ? 'fa-plug' : 'fa-plug-circle-xmark'"></i>
+    </button>
+    <button
+      v-if="isMockMode"
+      class="btn btn-sm btn-warning"
+      disabled
+      title="Mock Mode Enabled"
+    >
+      <i class="fas fa-flask"></i>
+    </button>
     <button
       class="btn"
       :class="buttonClass"
@@ -14,9 +30,9 @@
       class="btn btn-danger"
       @click="stopAll"
       :disabled="!isConnected || isStopping || throttles.length === 0"
-      :title="isStopping ? 'Stopping...' : 'Stop All'"
+      :title="isStopping ? 'Stopping...' : 'Emergency Stop All'"
     >
-      <i class="fas fa-stop"></i>
+      <i class="fas fa-hand"></i>
       <span class="d-none d-sm-inline ms-1">{{ isStopping ? 'Stopping...' : 'Stop All' }}</span>
     </button>
     <button
@@ -34,12 +50,24 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
+import { config } from '@/config'
 import { PowerState, powerStateToString } from 'jmri-client'
 
 const { power, isConnected, setPower, stopAllThrottles, releaseAllThrottles, throttles } = useJmri()
 const isBusy = ref(false)
 const isStopping = ref(false)
 const isReleasing = ref(false)
+const isMockMode = config.jmri.mock.enabled
+
+const statusClass = computed(() => {
+  return isConnected.value ? 'btn-success' : 'btn-danger'
+})
+
+const statusText = computed(() => {
+  let text = isConnected.value ? 'Connected' : 'Disconnected'
+  if (isMockMode) text += ' (Mock Mode)'
+  return text
+})
 
 const buttonClass = computed(() => {
   if (power.value === PowerState.ON) return 'btn-success'
@@ -100,3 +128,26 @@ async function releaseAll() {
   }
 }
 </script>
+
+<style scoped>
+/* Status indicator with alert colors */
+.status-indicator.btn-success {
+  background-color: #d1e7dd;
+  border-color: #badbcc;
+  color: #0f5132;
+}
+
+.status-indicator.btn-danger {
+  background-color: #f8d7da;
+  border-color: #f5c2c7;
+  color: #842029;
+}
+
+/* Smaller buttons on mobile for vertical space savings */
+@media (max-width: 575px) {
+  .btn-group .btn {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+  }
+}
+</style>
