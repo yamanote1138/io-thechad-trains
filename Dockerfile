@@ -24,23 +24,28 @@ COPY public ./public
 RUN npm run build
 
 # ============================================
-# Production Stage - Nginx
+# Production Stage - Caddy
 # ============================================
-FROM nginx:1.27-alpine
+FROM caddy:2-alpine
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy built static files
+COPY --from=builder /usr/src/app/dist /usr/share/caddy
 
-# Copy built static files from builder
-COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
+# Create a simple Caddyfile for SPA routing
+RUN echo $'{\n\
+    auto_https off\n\
+}\n\
+\n\
+:80 {\n\
+    root * /usr/share/caddy\n\
+    encode gzip\n\
+    try_files {path} /index.html\n\
+    file_server\n\
+}' > /etc/caddy/Caddyfile
 
 # Expose HTTP port
 EXPOSE 80
 
-# Health check using nginx health endpoint
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
-
-# Nginx runs as non-root by default in this image
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+  CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1

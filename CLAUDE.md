@@ -266,21 +266,20 @@ The project includes Docker support for both development and production environm
 1. **Production Deployment**
    - Multi-stage Dockerfile builds optimized production image
    - Builder stage: Compiles Vue/TypeScript app with Node 20 Alpine
-   - Production stage: Serves static files via nginx 1.27 Alpine
+   - Production stage: Serves static files via Caddy 2 Alpine
    - Image published to Docker Hub: `yamanote1138/trains-thechad-io`
-   - Includes health check at `/health` endpoint
+   - Includes health check endpoint
 
 2. **Docker Compose Files**
    - `compose.yaml` - Production deployment using pre-built registry image
    - `compose.dev.yaml` - Development mode with hot reload and volume mounts
-   - `nginx.conf` - Production nginx configuration with SPA routing, gzip, caching
 
 3. **Key Docker Features**
    - Multi-platform builds: linux/amd64 and linux/arm64
    - GitHub Actions cache for faster builds
    - SPA routing support (all routes serve index.html)
-   - Static asset caching and compression
-   - Security headers configured
+   - Automatic gzip compression
+   - Lightweight Caddy server - no configuration files needed
 
 ### Docker Configuration (v3.5.0+)
 
@@ -392,7 +391,7 @@ docker compose -f compose.dev.yaml up --build
 ```bash
 docker compose up --build
 # Access at http://localhost:8080
-# Full production build with nginx
+# Full production build with Caddy
 ```
 
 **Production mode** (from Docker Hub):
