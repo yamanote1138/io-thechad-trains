@@ -1,20 +1,13 @@
 <template>
   <div class="btn-group w-100 mb-2 mb-sm-3" role="group">
+    <!-- Combined Connection Status Indicator -->
     <button
       class="btn btn-sm status-indicator"
       :class="statusClass"
       disabled
       :title="statusText"
     >
-      <i class="fas" :class="isConnected.value ? 'fa-plug' : 'fa-plug-circle-xmark'"></i>
-    </button>
-    <button
-      v-if="isMockMode"
-      class="btn btn-sm btn-warning"
-      disabled
-      title="Mock Mode Enabled"
-    >
-      <i class="fas fa-flask"></i>
+      <i class="fas" :class="statusIcon"></i>
     </button>
     <button
       class="btn"
@@ -49,24 +42,77 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useJmri } from '@/composables/useJmri'
+import { useJmri, ConnectionState } from '@/composables/useJmri'
 import { config } from '@/config'
 import { PowerState, powerStateToString } from 'jmri-client'
 
-const { power, isConnected, setPower, stopAllThrottles, releaseAllThrottles, throttles } = useJmri()
+const { power, connectionState, isServerOnline, isConnected, setPower, stopAllThrottles, releaseAllThrottles, throttles } = useJmri()
 const isBusy = ref(false)
 const isStopping = ref(false)
 const isReleasing = ref(false)
 const isMockMode = config.jmri.mock.enabled
 
+// Combined connection status
 const statusClass = computed(() => {
-  return isConnected.value ? 'btn-success' : 'btn-danger'
+  // If server is down, we can't know JMRI state
+  if (!isServerOnline.value) {
+    return 'btn-warning'
+  }
+
+  // Server is up, show JMRI connection state
+  switch (connectionState.value) {
+    case ConnectionState.CONNECTED:
+      return 'btn-success'
+    case ConnectionState.DISCONNECTED:
+      return 'btn-danger'
+    case ConnectionState.UNKNOWN:
+      return 'btn-warning'
+  }
 })
 
 const statusText = computed(() => {
-  let text = isConnected.value ? 'Connected' : 'Disconnected'
+  // If server is down, that's the primary issue
+  if (!isServerOnline.value) {
+    return 'Web Server Offline'
+  }
+
+  // Server is up, show JMRI connection state
+  let text = ''
+  switch (connectionState.value) {
+    case ConnectionState.CONNECTED:
+      text = 'Connected'
+      break
+    case ConnectionState.DISCONNECTED:
+      text = 'Disconnected'
+      break
+    case ConnectionState.UNKNOWN:
+      text = 'Connection Unknown'
+      break
+  }
   if (isMockMode) text += ' (Mock Mode)'
   return text
+})
+
+const statusIcon = computed(() => {
+  // Server is down - show sad face
+  if (!isServerOnline.value) {
+    return 'fa-face-frown'
+  }
+
+  // Server is up - show JMRI connection state
+  switch (connectionState.value) {
+    case ConnectionState.CONNECTED:
+      // Connected: show bolt for real connection, check for mock
+      return isMockMode ? 'fa-plug-circle-check' : 'fa-plug-circle-bolt'
+    case ConnectionState.DISCONNECTED:
+      // Disconnected: show X
+      return 'fa-plug-circle-xmark'
+    case ConnectionState.UNKNOWN:
+      // Unknown JMRI state (reconnecting, etc)
+      return 'fa-circle-question'
+    default:
+      return 'fa-circle-question'
+  }
 })
 
 const buttonClass = computed(() => {
@@ -141,6 +187,12 @@ async function releaseAll() {
   background-color: #dc3545;
   border-color: #dc3545;
   color: #ffffff;
+}
+
+.status-indicator.btn-warning {
+  background-color: #ffc107;
+  border-color: #ffc107;
+  color: #212529;
 }
 
 /* Smaller buttons on mobile for vertical space savings */

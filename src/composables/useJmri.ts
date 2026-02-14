@@ -10,6 +10,13 @@ import type { JmriState, Throttle, RosterEntry, Direction, ThrottleFunction } fr
 
 import { JmriClient, PowerState } from 'jmri-client'
 
+// Connection state enum
+export enum ConnectionState {
+  UNKNOWN = 'unknown',      // JMRI state unknown (reconnecting, initializing, etc.)
+  DISCONNECTED = 'disconnected', // JMRI disconnected
+  CONNECTED = 'connected'   // JMRI connected
+}
+
 // Singleton state
 const jmriState = ref<JmriState>({
   power: 0, // PowerState.UNKNOWN
@@ -17,7 +24,8 @@ const jmriState = ref<JmriState>({
   throttles: new Map()
 })
 
-const isConnected = ref(false)
+const connectionState = ref<ConnectionState>(ConnectionState.UNKNOWN)
+const isServerOnline = ref<boolean>(true) // Browser/web server connectivity
 const railroadName = ref<string>('Model Railroad')
 let jmriClient: any = null
 const throttleIds = new Map<number, string>() // address -> throttleId mapping
@@ -66,7 +74,7 @@ export function useJmri() {
     // Set up event handlers
     jmriClient.on('connected', async () => {
       logger.info('JMRI client connected')
-      isConnected.value = true
+      connectionState.value = ConnectionState.CONNECTED
 
       // Fetch initial power state
       try {
@@ -88,16 +96,17 @@ export function useJmri() {
 
     jmriClient.on('disconnected', (reason: any) => {
       logger.warn('JMRI client disconnected:', reason)
-      isConnected.value = false
+      connectionState.value = ConnectionState.UNKNOWN
     })
 
     jmriClient.on('reconnecting', (attempt: number, delay: number) => {
       logger.info(`Reconnecting to JMRI (attempt ${attempt}, delay ${delay}ms)`)
+      connectionState.value = ConnectionState.UNKNOWN
     })
 
     jmriClient.on('reconnected', () => {
       logger.info('JMRI client reconnected successfully')
-      isConnected.value = true
+      connectionState.value = ConnectionState.CONNECTED
     })
 
     jmriClient.on('reconnectionFailed', (attempts: number) => {
@@ -118,7 +127,7 @@ export function useJmri() {
 
     jmriClient.on('heartbeat:timeout', () => {
       logger.warn('JMRI heartbeat timeout - connection lost')
-      isConnected.value = false
+      connectionState.value = ConnectionState.UNKNOWN
     })
 
     jmriClient.on('connectionStateChanged', (state: any) => {
@@ -191,13 +200,44 @@ export function useJmri() {
 
     // Connect to JMRI
     jmriClient.connect()
+
+    // Listen for browser-level connectivity changes
+    // This detects when the web server (Vite/production) goes down
+    window.addEventListener('offline', () => {
+      logger.warn('Browser detected offline - web server may be down')
+      isServerOnline.value = false
+    })
+
+    window.addEventListener('online', () => {
+      logger.info('Browser detected back online')
+      isServerOnline.value = true
+    })
+
+    // Check initial browser connectivity state
+    if (!navigator.onLine) {
+      logger.warn('Browser is offline at initialization')
+      isServerOnline.value = false
+    }
+
+    // In development, listen to Vite's HMR connection state
+    if (import.meta.hot) {
+      import.meta.hot.on('vite:ws:disconnect', () => {
+        logger.warn('Vite dev server connection lost')
+        isServerOnline.value = false
+      })
+
+      import.meta.hot.on('vite:ws:connect', () => {
+        logger.info('Vite dev server connection restored')
+        isServerOnline.value = true
+      })
+    }
   }
 
   /**
    * Set track power on/off
    */
   async function setPower(state: 'on' | 'off') {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot set power: JMRI client not connected')
       return
     }
@@ -232,7 +272,7 @@ export function useJmri() {
    * Set throttle speed
    */
   async function setThrottleSpeed(address: number, speed: number) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot set throttle speed: JMRI client not connected')
       return
     }
@@ -256,7 +296,7 @@ export function useJmri() {
    * Set throttle direction
    */
   async function setThrottleDirection(address: number, direction: Direction) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot set throttle direction: JMRI client not connected')
       return
     }
@@ -280,7 +320,7 @@ export function useJmri() {
    * Set throttle function
    */
   async function setThrottleFunction(address: number, fn: number, state: boolean) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot set throttle function: JMRI client not connected')
       return
     }
@@ -307,7 +347,7 @@ export function useJmri() {
    * Mock mode will be fixed to match this format: https://github.com/yamanote1138/jmri-client/issues/21
    */
   async function fetchRoster() {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot fetch roster: JMRI client not connected')
       return
     }
@@ -374,7 +414,7 @@ export function useJmri() {
    * Acquire a throttle for control
    */
   async function acquireThrottle(address: number) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot acquire throttle: JMRI client not connected')
       return
     }
@@ -425,7 +465,7 @@ export function useJmri() {
    * Set throttle to idle (speed to 0, maintain direction)
    */
   async function idleThrottle(address: number) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot idle throttle: JMRI client not connected')
       return
     }
@@ -449,7 +489,7 @@ export function useJmri() {
    * Stop all acquired throttles (set speed to 0)
    */
   async function stopAllThrottles() {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot stop throttles: JMRI client not connected')
       return
     }
@@ -474,7 +514,7 @@ export function useJmri() {
    * Release all acquired throttles
    */
   async function releaseAllThrottles() {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot release throttles: JMRI client not connected')
       return
     }
@@ -495,7 +535,7 @@ export function useJmri() {
    * Release a throttle
    */
   async function releaseThrottle(address: number) {
-    if (!jmriClient || !isConnected.value) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
       logger.error('Cannot release throttle: JMRI client not connected')
       return
     }
@@ -534,10 +574,12 @@ export function useJmri() {
   return {
     // State
     jmriState,
-    isConnected,
+    connectionState,
+    isServerOnline,
     railroadName,
 
     // Computed
+    isConnected: computed(() => connectionState.value === ConnectionState.CONNECTED),
     roster: computed(() => Array.from(jmriState.value.roster.values())),
     throttles: computed(() => Array.from(jmriState.value.throttles.values())),
     power: computed(() => jmriState.value.power),
