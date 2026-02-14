@@ -71,6 +71,9 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
 │   │   └── index.ts           # Vite env var handling
 │   ├── App.vue             # Root component
 │   └── main.ts             # Application entry point
+├── debug/                  # Debug files (GITIGNORED - not committed)
+│   ├── *.mjs                   # Test scripts
+│   └── *.png                   # Screenshots
 ├── .env.example            # Template configuration (COMMITTED)
 ├── .env                    # Local configuration (GITIGNORED)
 ├── vite.config.ts          # Vite build configuration
@@ -130,6 +133,12 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
    - Use the centralized logger from `@/utils/logger`
    - Available methods: `logger.debug()`, `logger.info()`, `logger.warn()`, `logger.error()`
    - Don't use `console.log()` directly
+
+5. **Debugging Files**
+   - ALWAYS place debugging scripts, test files, and screenshots in the `debug/` directory
+   - The `debug/` directory is gitignored and never committed
+   - Examples of debug files: test scripts (.mjs), screenshots (.png), inspection tools
+   - Keep the root directory clean - no uncommitted files outside of `debug/`
 
 ### Environment Configuration
 
