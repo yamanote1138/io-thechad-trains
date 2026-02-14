@@ -3,8 +3,7 @@
  * Handles connection and control of JMRI model railroad system
  */
 
-import { ref, computed, onMounted } from 'vue'
-import { getJmriWsUrl, config } from '@/config'
+import { ref, computed } from 'vue'
 import { logger } from '@/utils/logger'
 import type { JmriState, Throttle, RosterEntry, Direction, ThrottleFunction } from '@/types/jmri'
 
@@ -17,6 +16,14 @@ export enum ConnectionState {
   CONNECTED = 'connected'   // JMRI connected
 }
 
+export interface JmriConnectionSettings {
+  host: string
+  port: number
+  protocol: 'ws' | 'wss'
+  mockEnabled: boolean
+  mockDelay?: number
+}
+
 // Singleton state
 const jmriState = ref<JmriState>({
   power: 0, // PowerState.UNKNOWN
@@ -24,10 +31,11 @@ const jmriState = ref<JmriState>({
   throttles: new Map()
 })
 
-const connectionState = ref<ConnectionState>(ConnectionState.UNKNOWN)
+const connectionState = ref<ConnectionState>(ConnectionState.DISCONNECTED)
 const isServerOnline = ref<boolean>(true) // Browser/web server connectivity
 const railroadName = ref<string>('Model Railroad')
 let jmriClient: any = null
+let currentSettings: JmriConnectionSettings | null = null
 const throttleIds = new Map<number, string>() // address -> throttleId mapping
 
 /**
@@ -35,26 +43,28 @@ const throttleIds = new Map<number, string>() // address -> throttleId mapping
  */
 export function useJmri() {
   /**
-   * Initialize JMRI client
+   * Initialize JMRI client with connection settings
    */
-  const initialize = () => {
+  const initialize = (settings: JmriConnectionSettings) => {
     if (jmriClient) {
-      return
+      logger.warn('JMRI client already initialized, disconnecting first')
+      disconnect()
     }
 
-    const wsUrl = getJmriWsUrl()
+    currentSettings = settings
+    const wsUrl = `${settings.protocol}://${settings.host}:${settings.port}/json`
     logger.debug('Initializing JMRI client with URL:', wsUrl)
-    logger.debug('Mock mode enabled:', config.jmri.mock.enabled)
+    logger.debug('Mock mode enabled:', settings.mockEnabled)
 
     // Initialize jmri-client v3.0
     jmriClient = new JmriClient({
-      host: config.jmri.host,
-      port: config.jmri.port,
-      protocol: config.jmri.protocol,
+      host: settings.host,
+      port: settings.port,
+      protocol: settings.protocol,
       autoConnect: false, // Disable auto-connect, we'll connect manually
       mock: {
-        enabled: config.jmri.mock.enabled,
-        responseDelay: config.jmri.mock.responseDelay
+        enabled: settings.mockEnabled,
+        responseDelay: settings.mockDelay || 50
       },
       reconnection: {
         enabled: true,
@@ -65,7 +75,7 @@ export function useJmri() {
         jitter: true
       },
       heartbeat: {
-        enabled: !config.jmri.mock.enabled, // Disable in mock mode
+        enabled: !settings.mockEnabled, // Disable in mock mode
         interval: 15000,
         timeout: 5000
       }
@@ -362,14 +372,20 @@ export function useJmri() {
         const entryData = entry.data
 
         const address = parseInt(entryData.address)
+
+        if (!currentSettings) {
+          logger.error('No connection settings available')
+          continue
+        }
+
         // Convert WebSocket protocol to HTTP for image URLs
-        const httpProtocol = config.jmri.protocol === 'wss' ? 'https' : 'http'
+        const httpProtocol = currentSettings.protocol === 'wss' ? 'https' : 'http'
 
         // Real server provides icon path
         const thumbnailUrl = entryData.icon
-          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}${entryData.icon}`
+          ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}${entryData.icon}`
           : entryData.name
-          ? `${httpProtocol}://${config.jmri.host}:${config.jmri.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
+          ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
           : undefined
 
         // Extract function keys from roster entry
@@ -565,10 +581,30 @@ export function useJmri() {
     }
   }
 
-  // Auto-initialize immediately (singleton pattern)
-  if (!jmriClient) {
-    logger.debug('First call to useJmri, initializing...')
-    initialize()
+  /**
+   * Disconnect from JMRI and clean up
+   */
+  function disconnect() {
+    if (!jmriClient) {
+      return
+    }
+
+    logger.info('Disconnecting from JMRI')
+
+    try {
+      jmriClient.disconnect()
+    } catch (error) {
+      logger.error('Error during disconnect:', error)
+    }
+
+    jmriClient = null
+    currentSettings = null
+    connectionState.value = ConnectionState.DISCONNECTED
+    throttleIds.clear()
+    jmriState.value.throttles.clear()
+    jmriState.value.roster.clear()
+    jmriState.value.power = 0
+    railroadName.value = 'Model Railroad'
   }
 
   return {
@@ -580,12 +616,14 @@ export function useJmri() {
 
     // Computed
     isConnected: computed(() => connectionState.value === ConnectionState.CONNECTED),
+    isMockMode: computed(() => currentSettings?.mockEnabled ?? false),
     roster: computed(() => Array.from(jmriState.value.roster.values())),
     throttles: computed(() => Array.from(jmriState.value.throttles.values())),
     power: computed(() => jmriState.value.power),
 
     // Methods
     initialize,
+    disconnect,
     setPower,
     setThrottleSpeed,
     setThrottleDirection,

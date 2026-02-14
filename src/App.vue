@@ -1,13 +1,22 @@
 <template>
-  <div class="min-vh-100 bg-dark text-light">
+  <!-- Connection Setup Screen -->
+  <ConnectionSetup
+    v-if="!isInitialized"
+    ref="setupRef"
+    @connect="handleConnect"
+  />
+
+  <!-- Main Application -->
+  <div v-else class="min-vh-100 bg-dark text-light">
     <!-- Sticky Header Section -->
     <div class="sticky-header bg-dark">
       <div class="container-fluid py-2 py-sm-3 pb-2">
         <!-- Header -->
-        <h1 class="h5 h5-sm-4 mb-2 mb-sm-3">{{ railroadName }}</h1>
+        <h1 class="h5 h5-sm-4 mb-1">Trains Over the Interwebs</h1>
+        <p class="text-muted small mb-2 mb-sm-3">controlling {{ railroadName }}</p>
 
         <!-- Power Control with integrated status -->
-        <PowerControl />
+        <PowerControl @logout="handleLogout" />
       </div>
       <hr class="divider m-0">
     </div>
@@ -21,36 +30,125 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
-import { useJmri } from '@/composables/useJmri'
+import { ref, watch } from 'vue'
+import { useJmri, type JmriConnectionSettings, ConnectionState } from '@/composables/useJmri'
+import { logger } from '@/utils/logger'
+import ConnectionSetup from '@/components/ConnectionSetup.vue'
 import PowerControl from '@/components/PowerControl.vue'
 import ThrottleList from '@/components/ThrottleList.vue'
+import type { ConnectionSettings } from '@/components/ConnectionSetup.vue'
 
-const { fetchRoster, isConnected, railroadName } = useJmri()
+const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName } = useJmri()
+
+const isInitialized = ref(false)
+const setupRef = ref<InstanceType<typeof ConnectionSetup>>()
 
 // Update page title when railroad name changes
 watch(railroadName, (newName) => {
   document.title = newName
 }, { immediate: true })
 
-onMounted(async () => {
-  // Wait for connection before fetching
-  const checkConnection = setInterval(async () => {
-    if (isConnected.value) {
-      clearInterval(checkConnection)
-      try {
-        await fetchRoster()
-      } catch (error) {
-        console.error('Failed to fetch initial data:', error)
-      }
-    }
-  }, 500)
+const handleConnect = async (settings: ConnectionSettings) => {
+  try {
+    logger.info('Connecting with settings:', settings)
 
-  // Cleanup after 30 seconds if still not connected
-  setTimeout(() => {
-    clearInterval(checkConnection)
-  }, 30000)
-})
+    // Convert UI settings to JMRI settings
+    const jmriSettings: JmriConnectionSettings = {
+      host: settings.host,
+      port: settings.port,
+      protocol: settings.secure ? 'wss' : 'ws',
+      mockEnabled: settings.mockEnabled,
+      mockDelay: 50
+    }
+
+    let connectionTimeout: NodeJS.Timeout | null = null
+    let hasHandledError = false
+
+    const handleConnectionError = (message: string) => {
+      if (hasHandledError) return
+      hasHandledError = true
+
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout)
+      }
+      setupRef.value?.setError(message)
+      disconnect()
+    }
+
+    // Initialize JMRI client
+    initialize(jmriSettings)
+
+    // Wait for connection to succeed or fail
+    connectionTimeout = setTimeout(() => {
+      if (!isConnected.value && !isInitialized.value) {
+        logger.error('Connection timeout after 10 seconds')
+        const protocol = settings.secure ? 'wss' : 'ws'
+        handleConnectionError(
+          `Connection timeout. Unable to reach ${protocol}://${settings.host}:${settings.port}. ` +
+          `Check that the JMRI server is running and accessible.`
+        )
+      }
+    }, 10000)
+
+    // Watch for connection state changes
+    const stopWatching = watch(connectionState, async (newState, oldState) => {
+      logger.debug(`Connection state changed: ${oldState} -> ${newState}`)
+
+      if (newState === ConnectionState.CONNECTED) {
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout)
+        }
+        stopWatching()
+
+        logger.info('Successfully connected to JMRI')
+
+        // Fetch roster data
+        try {
+          await fetchRoster()
+        } catch (error) {
+          logger.error('Failed to fetch roster:', error)
+        }
+
+        // Show main app
+        isInitialized.value = true
+      } else if ((newState === ConnectionState.DISCONNECTED || newState === ConnectionState.UNKNOWN) &&
+                 !isInitialized.value &&
+                 oldState !== undefined) {
+        // Connection failed during initial connection attempt
+        // Only trigger if we had a previous state (not the initial state)
+        const protocol = settings.secure ? 'wss' : 'ws'
+        const url = `${protocol}://${settings.host}:${settings.port}`
+
+        logger.error('Connection failed to:', url)
+        stopWatching()
+        handleConnectionError(
+          `Failed to connect to ${url}. ` +
+          `Possible issues: hostname not found, port unreachable, or JMRI server not running.`
+        )
+      }
+    })
+
+  } catch (error: any) {
+    logger.error('Failed to initialize connection:', error)
+
+    // Provide detailed error message
+    let errorMsg = 'Failed to connect: '
+    if (error.message) {
+      errorMsg += error.message
+    } else {
+      errorMsg += 'Unknown error occurred'
+    }
+
+    setupRef.value?.setError(errorMsg)
+  }
+}
+
+const handleLogout = () => {
+  logger.info('Logging out')
+  disconnect()
+  isInitialized.value = false
+  document.title = 'Trains Over the Interwebs'
+}
 </script>
 
 <style scoped>

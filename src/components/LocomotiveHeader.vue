@@ -26,7 +26,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { config } from '@/config'
 
 interface Props {
   name: string
@@ -54,9 +53,9 @@ const PLACEHOLDER_IMAGE = props.compact
 // Track if the real image failed to load
 const imageLoadFailed = ref(false)
 
-// Compute the image source based on mock mode and load failures
+// Compute the image source - show thumbnail or fallback on error/missing
 const imageSrc = computed(() => {
-  if (config.jmri.mock.enabled || imageLoadFailed.value || !props.thumbnailUrl) {
+  if (imageLoadFailed.value || !props.thumbnailUrl) {
     return PLACEHOLDER_IMAGE
   }
   return props.thumbnailUrl

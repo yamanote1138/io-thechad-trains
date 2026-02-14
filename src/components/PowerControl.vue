@@ -29,13 +29,12 @@
       <span class="d-none d-sm-inline ms-1">{{ isStopping ? 'Stopping...' : 'Stop All' }}</span>
     </button>
     <button
-      class="btn btn-warning"
-      @click="releaseAll"
-      :disabled="!isConnected || isReleasing || throttles.length === 0"
-      :title="isReleasing ? 'Releasing...' : 'Release All'"
+      class="btn btn-secondary"
+      @click="handleLogout"
+      :title="'Disconnect and Return to Setup'"
     >
-      <i class="fas fa-eject"></i>
-      <span class="d-none d-sm-inline ms-1">{{ isReleasing ? 'Releasing...' : 'Release All' }}</span>
+      <i class="fas fa-right-from-bracket"></i>
+      <span class="d-none d-sm-inline ms-1">Logout</span>
     </button>
   </div>
 </template>
@@ -43,14 +42,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useJmri, ConnectionState } from '@/composables/useJmri'
-import { config } from '@/config'
 import { PowerState, powerStateToString } from 'jmri-client'
 
-const { power, connectionState, isServerOnline, isConnected, setPower, stopAllThrottles, releaseAllThrottles, throttles } = useJmri()
+const emit = defineEmits<{
+  logout: []
+}>()
+
+const { power, connectionState, isServerOnline, isConnected, setPower, stopAllThrottles, throttles } = useJmri()
 const isBusy = ref(false)
 const isStopping = ref(false)
-const isReleasing = ref(false)
-const isMockMode = config.jmri.mock.enabled
 
 // Combined connection status
 const statusClass = computed(() => {
@@ -89,7 +89,6 @@ const statusText = computed(() => {
       text = 'Connection Unknown'
       break
   }
-  if (isMockMode) text += ' (Mock Mode)'
   return text
 })
 
@@ -102,8 +101,7 @@ const statusIcon = computed(() => {
   // Server is up - show JMRI connection state
   switch (connectionState.value) {
     case ConnectionState.CONNECTED:
-      // Connected: show bolt for real connection, check for mock
-      return isMockMode ? 'fa-plug-circle-check' : 'fa-plug-circle-bolt'
+      return 'fa-plug-circle-bolt'
     case ConnectionState.DISCONNECTED:
       // Disconnected: show X
       return 'fa-plug-circle-xmark'
@@ -163,15 +161,8 @@ async function stopAll() {
   }
 }
 
-async function releaseAll() {
-  isReleasing.value = true
-  try {
-    await releaseAllThrottles()
-  } catch (error) {
-    console.error('Error releasing all throttles:', error)
-  } finally {
-    isReleasing.value = false
-  }
+function handleLogout() {
+  emit('logout')
 }
 </script>
 

@@ -11,117 +11,49 @@ Modern web-based control system for JMRI model railroad operations.
 
 ## Requirements
 
-- Node.js 20+
-- JMRI server running with JSON WebSocket enabled
+- Node.js 20+ (for development only)
+- JMRI server running with JSON WebSocket enabled (or use Mock Mode)
 - Browser on same network as JMRI server
 
-## Configuration
+## Quick Start
 
-The application is configured using environment variables in a `.env` file. This file is **gitignored** and contains your local JMRI server settings.
+The application features a **connection setup screen** on first launch where you configure your JMRI connection. No configuration files needed!
 
-### Initial Setup
+### First Run
 
-1. **Copy the example configuration:**
+1. **Install and start:**
    ```bash
-   cp .env.example .env
-   ```
-
-2. **Edit `.env` to match your setup:**
-   ```bash
-   nano .env
-   # or
-   code .env
-   ```
-
-3. **Restart the dev server** after making changes:
-   ```bash
+   npm install
    npm run dev
    ```
 
-### Configuration Options
+2. **Open http://localhost:5173 in your browser**
 
-#### JMRI Server Connection
+3. **Configure connection** in the setup screen:
+   - Enter your JMRI hostname (e.g., `raspi-jmri.local`)
+   - Set port (default: `12080`)
+   - Enable secure connection if using HTTPS/WSS
+   - OR enable Mock Mode for demo without hardware
 
-**`VITE_JMRI_HOST`** (default: `raspi-jmri.local`)
-- Hostname or IP address of your JMRI server
-- Examples:
-  - `raspi-jmri.local` - mDNS hostname (recommended)
-  - `192.168.1.100` - Static IP address
-  - `jmri.local` - Custom hostname
-  - `localhost` - Running JMRI on same machine
+4. **Click Connect** - Your settings are saved in browser localStorage
 
-**`VITE_JMRI_PORT`** (default: `12080`)
-- WebSocket port configured in JMRI
-- Default JMRI JSON WebSocket port is `12080`
-- Check JMRI preferences if using a different port
+### Connection Options
 
-**`VITE_JMRI_PROTOCOL`** (default: `ws`)
-- WebSocket protocol
-- Options:
-  - `ws` - Standard WebSocket (default)
-  - `wss` - Secure WebSocket (if JMRI has SSL configured)
+**Real JMRI Server:**
+- Host: Your JMRI server hostname or IP (e.g., `raspi-jmri.local`, `192.168.1.100`)
+- Port: `12080` (default JMRI WebSocket port)
+- Secure: Check if JMRI has SSL configured (uses `wss://` instead of `ws://`)
 
-#### Mock Mode (Testing Without Hardware)
+**Mock Mode (Demo/Testing):**
+- No JMRI hardware required
+- Simulated locomotives and controls
+- Perfect for testing UI changes or demos
 
-**`VITE_JMRI_MOCK_ENABLED`** (default: `false`)
-- Enable mock mode to test without JMRI hardware
-- Values: `true` or `false`
-- When enabled, uses simulated data instead of real JMRI connection
+**Debug Logging:**
+- Enable to see detailed logs in browser console
+- Useful for troubleshooting connection issues
 
-**`VITE_JMRI_MOCK_DELAY`** (default: `50`)
-- Simulated network latency in milliseconds
-- Only applies when mock mode is enabled
-- Use `0` for instant responses, or higher values to simulate slow networks
-
-#### Application Settings
-
-**`VITE_APP_TITLE`** (default: `Trains Over the Interwebs`)
-- Application title displayed in the header
-- Customize to your railroad name
-
-### Example Configurations
-
-**Local development with JMRI on Raspberry Pi:**
-```env
-VITE_JMRI_HOST=raspi-jmri.local
-VITE_JMRI_PORT=12080
-VITE_JMRI_PROTOCOL=ws
-VITE_JMRI_MOCK_ENABLED=false
-```
-
-**Testing/demo mode without hardware:**
-```env
-VITE_JMRI_HOST=localhost
-VITE_JMRI_PORT=12080
-VITE_JMRI_PROTOCOL=ws
-VITE_JMRI_MOCK_ENABLED=true
-VITE_JMRI_MOCK_DELAY=50
-```
-
-**JMRI on same machine:**
-```env
-VITE_JMRI_HOST=localhost
-VITE_JMRI_PORT=12080
-VITE_JMRI_PROTOCOL=ws
-VITE_JMRI_MOCK_ENABLED=false
-```
-
-**Production with custom title:**
-```env
-VITE_JMRI_HOST=trains.example.com
-VITE_JMRI_PORT=12080
-VITE_JMRI_PROTOCOL=wss
-VITE_JMRI_MOCK_ENABLED=false
-VITE_APP_TITLE=Pacific Northwestern Railway
-```
-
-### Important Notes
-
-- **Never commit `.env` to git** - It's automatically ignored
-- **`.env.example` is committed** - This serves as a template for others
-- **Changes require restart** - Restart `npm run dev` after editing `.env`
-- **Build-time only** - Environment variables are embedded at build time, not runtime
-- **Prefix required** - All variables must start with `VITE_` to be accessible in the browser
+Your settings are automatically saved and reloaded on next visit. Click the **Logout** button to return to the setup screen and change settings.
 
 ## Development
 
@@ -144,37 +76,41 @@ npm run type-check
 
 The dev server will start at http://localhost:5173
 
-## Mock Mode
-
-Mock mode allows you to test and demo the application without JMRI hardware. When enabled, all responses are generated from mock data instead of connecting to a real JMRI server.
-
-**To enable mock mode:**
-
-1. Edit `.env` and set:
-   ```env
-   VITE_JMRI_MOCK_ENABLED=true
-   ```
-
-2. Optionally adjust the response delay (simulates network latency):
-   ```env
-   VITE_JMRI_MOCK_DELAY=50
-   ```
-
-3. Restart the dev server
-
-Mock mode provides:
-- Simulated locomotives from a sample roster
-- Realistic power state changes
-- Functional throttle controls (speed, direction, functions)
-- Sample turnouts
-- Connection state simulation
-
-This is perfect for:
-- Testing UI changes without hardware
-- Demonstrations and screenshots
-- Development when JMRI is not available
-
 ## Deployment
+
+### Docker (Recommended)
+
+The application features **runtime configuration** - no build-time environment variables needed! Configure your JMRI connection through the web UI on first launch.
+
+**Deploy with Docker:**
+```bash
+docker compose up -d
+```
+Access at http://localhost:8080
+
+**Customize the port:**
+```bash
+# Use a different port (e.g., 3000)
+PORT=3000 docker compose up -d
+
+# Or create a .env file
+echo "PORT=3000" > .env
+docker compose up -d
+```
+
+On first visit, you'll see a connection setup screen where you can:
+- Enter your JMRI server hostname and port
+- Enable Mock Mode for testing without hardware
+- Enable debug logging
+- All settings saved in browser localStorage
+
+**Development with hot reload:**
+```bash
+docker compose -f compose.dev.yaml up --build
+```
+Access at http://localhost:5173
+
+### Manual Deployment
 
 Build the app and serve the `dist/` folder from any static web server:
 
@@ -221,17 +157,20 @@ This is a pure frontend single-page application (SPA) that connects directly to 
 **"Disconnected from JMRI" error:**
 - Verify JMRI is running
 - Check that the WebSocket server is enabled in JMRI preferences
-- Ensure JMRI host/port in `.env` is correct
+- Verify hostname/IP and port in connection settings
 - Verify browser and JMRI are on the same network
+- Click **Logout** to return to setup screen and change settings
+- Enable debug logging to see detailed connection info in console
 
 **Locomotives not showing:**
 - Make sure locomotives are configured in JMRI roster
-- Check browser console for errors
-- Try refreshing the page
+- Enable debug logging and check browser console for errors
+- Try clicking Logout and reconnecting
 
-**Turnouts not showing:**
-- Verify turnouts are configured in JMRI
-- Check browser console for errors
+**Change connection settings:**
+- Click the **Logout** button in the header
+- This returns you to the connection setup screen
+- Enter new settings and reconnect
 
 ## License
 

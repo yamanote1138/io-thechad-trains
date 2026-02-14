@@ -11,8 +11,6 @@
 
 <script setup lang="ts">
 import { useJmri } from '@/composables/useJmri'
-import { config } from '@/config'
 
-const { isConnected } = useJmri()
-const isMockMode = config.jmri.mock.enabled
+const { isConnected, isMockMode } = useJmri()
 </script>

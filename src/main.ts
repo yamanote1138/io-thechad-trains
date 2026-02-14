@@ -31,4 +31,3 @@ app.mount('#app')
 // Log initialization
 console.log('=== APP INITIALIZED ===')
 console.log('Environment:', import.meta.env.MODE)
-console.log('Mock mode:', import.meta.env.VITE_JMRI_MOCK_ENABLED)

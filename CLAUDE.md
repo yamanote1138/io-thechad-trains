@@ -14,7 +14,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 20+** required
 
 ### Current Version
-v3.3.0 - Latest improvements include mobile-first UI refinements, component consolidation, and sticky header controls.
+v3.5.0 - **Major Change**: Runtime configuration through web UI. Connection settings now configured on first launch instead of environment variables.
 
 ## Architecture Principles
 
@@ -49,6 +49,13 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
    - JMRI disconnects after 30s of no heartbeat
    - Previous 30s interval was hitting timeout threshold
 
+5. **Runtime Configuration (v3.5.0+)**
+   - Connection settings configured through web UI on first launch
+   - Settings stored in browser localStorage
+   - No environment variables or build-time configuration needed
+   - ConnectionSetup component handles initial configuration
+   - Logout button returns to setup screen to change settings
+
 ## Project Structure
 
 ```
@@ -67,15 +74,11 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
 │   │   └── jmri.ts            # JMRI-related types
 │   ├── utils/              # Utility functions
 │   │   └── logger.ts          # Logging utility
-│   ├── config/             # Configuration
-│   │   └── index.ts           # Vite env var handling
 │   ├── App.vue             # Root component
 │   └── main.ts             # Application entry point
 ├── debug/                  # Debug files (GITIGNORED - not committed)
 │   ├── *.mjs                   # Test scripts
 │   └── *.png                   # Screenshots
-├── .env.example            # Template configuration (COMMITTED)
-├── .env                    # Local configuration (GITIGNORED)
 ├── vite.config.ts          # Vite build configuration
 ├── tsconfig.json           # TypeScript configuration
 └── package.json            # Dependencies and scripts
@@ -140,33 +143,49 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
    - Examples of debug files: test scripts (.mjs), screenshots (.png), inspection tools
    - Keep the root directory clean - no uncommitted files outside of `debug/`
 
-### Environment Configuration
+### Runtime Configuration
 
-1. **Environment Variables**
-   - ALL browser-accessible variables MUST start with `VITE_`
-   - Variables are build-time only (embedded at build, not runtime)
-   - Default values should be sensible for local development
-   - NEVER commit `.env` - it's gitignored
-   - ALWAYS keep `.env.example` up to date
+**As of v3.5.0**, the application uses runtime configuration instead of build-time environment variables.
 
-2. **Configuration Structure**
+1. **Connection Setup Screen**
+   - Displayed on first launch (when `!isInitialized`)
+   - Form fields for JMRI host, port, secure connection
+   - Mock mode toggle for testing without hardware
+   - Debug logging checkbox
+   - Settings saved to browser localStorage
+
+2. **LocalStorage Keys**
+   - `jmri-connection-settings` - JSON object with connection configuration
+   - `jmri-debug-enabled` - String 'true'/'false' for debug logging
+   - Settings persist across browser sessions
+   - Settings are per-browser, per-domain
+
+3. **Configuration Flow**
    ```typescript
-   // src/config/index.ts handles all env var parsing
-   export const config = {
-     jmri: {
-       host: import.meta.env.VITE_JMRI_HOST || 'raspi-jmri.local',
-       port: Number(import.meta.env.VITE_JMRI_PORT) || 12080,
-       protocol: import.meta.env.VITE_JMRI_PROTOCOL || 'ws',
-       mock: {
-         enabled: import.meta.env.VITE_JMRI_MOCK_ENABLED === 'true',
-         responseDelay: Number(import.meta.env.VITE_JMRI_MOCK_DELAY) || 50
-       }
-     },
-     app: {
-       title: import.meta.env.VITE_APP_TITLE || 'Trains Over the Interwebs'
-     }
+   // User configures in ConnectionSetup component
+   interface ConnectionSettings {
+     host: string              // e.g., 'raspi-jmri.local'
+     port: number              // e.g., 12080
+     secure: boolean           // false = ws, true = wss
+     mockEnabled: boolean      // Enable mock mode
+     debugEnabled: boolean     // Enable debug logging
    }
+
+   // Settings converted to JmriConnectionSettings
+   // Passed to useJmri().initialize(settings)
+   // JmriClient created with runtime settings
    ```
+
+4. **Logger Configuration**
+   - Debug messages only show when `localStorage.getItem('jmri-debug-enabled') === 'true'`
+   - Info, warn, error always shown
+   - User controls via checkbox in ConnectionSetup
+
+5. **Changing Settings**
+   - User clicks "Logout" button in header
+   - Calls `disconnect()` to clean up JMRI client
+   - Returns to ConnectionSetup screen
+   - New settings saved and connection re-established
 
 ### Git Commit Conventions
 
@@ -238,33 +257,165 @@ v3.3.0 - Latest improvements include mobile-first UI refinements, component cons
    - Test on mobile, tablet, and desktop viewports
    - Dev server allows network access (`host: true`) for device testing
 
+## Docker & CI/CD
+
+### Docker Setup
+
+The project includes Docker support for both development and production environments:
+
+1. **Production Deployment**
+   - Multi-stage Dockerfile builds optimized production image
+   - Builder stage: Compiles Vue/TypeScript app with Node 20 Alpine
+   - Production stage: Serves static files via nginx 1.27 Alpine
+   - Image published to Docker Hub: `yamanote1138/trains-thechad-io`
+   - Includes health check at `/health` endpoint
+
+2. **Docker Compose Files**
+   - `compose.yaml` - Production deployment using pre-built registry image
+   - `compose.dev.yaml` - Development mode with hot reload and volume mounts
+   - `nginx.conf` - Production nginx configuration with SPA routing, gzip, caching
+
+3. **Key Docker Features**
+   - Multi-platform builds: linux/amd64 and linux/arm64
+   - GitHub Actions cache for faster builds
+   - SPA routing support (all routes serve index.html)
+   - Static asset caching and compression
+   - Security headers configured
+
+### Docker Configuration (v3.5.0+)
+
+**As of v3.5.0**, Docker deployment is greatly simplified - no build args or environment variables needed!
+
+1. **Runtime Configuration**
+   - Single Docker image works for all deployments
+   - Users configure JMRI connection through web UI on first launch
+   - Settings stored in browser localStorage (persists per-browser)
+   - No need to rebuild image for different JMRI servers
+
+2. **Deployment Simplicity**
+   ```bash
+   # Production deployment - works anywhere
+   docker compose up -d
+   # Access at http://localhost:8080
+   # Configure JMRI connection in web UI
+   ```
+
+3. **CI/CD Build Strategy**
+   - GitHub Actions builds single universal image
+   - No environment-specific builds needed
+   - Image published to Docker Hub: `yamanote1138/trains-thechad-io`
+   - Same image used for all deployments
+
+4. **Development**
+   - `compose.dev.yaml` for hot reload during development
+   - Still mounts source files as volumes
+   - Vite dev server handles rebuilds
+
+### GitHub Actions Workflows
+
+Two automated workflows handle CI/CD:
+
+1. **CI Workflow** (`.github/workflows/ci.yml`)
+   - Triggers on: pushes to `main` and all pull requests
+   - Runs type checking and builds
+   - Validates Docker image builds
+   - Uses GitHub Actions cache for faster npm and Docker builds
+   - Does NOT push images (validation only)
+
+2. **Docker Build & Push** (`.github/workflows/docker-build-push.yml`)
+   - Triggers on: version tags (e.g., `v3.4.0`)
+   - Builds multi-platform Docker images
+   - Pushes to Docker Hub registry
+   - Tags images with version and `latest`
+   - Requires secrets: `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
+
+### Release Workflow with Docker
+
+When creating a new release:
+
+```bash
+# 1. Commit all changes
+git add .
+git commit -m "Feature description"
+
+# 2. Bump version in package.json and commit
+# Edit package.json version to match tag
+git add package.json
+git commit -m "Release vX.Y.Z: Brief description"
+
+# 3. Create annotated tag (triggers Docker build/push)
+git tag -a vX.Y.Z -m "Release vX.Y.Z: Brief description"
+
+# 4. Push commits and tags
+git push && git push --tags
+
+# 5. GitHub Actions automatically builds and pushes Docker image
+
+# 6. Create GitHub release with notes
+gh release create vX.Y.Z --title "vX.Y.Z: Title" --notes "Release notes..."
+```
+
+The tag push triggers the Docker build workflow, which builds and publishes the image to Docker Hub with appropriate version tags.
+
 ## Common Tasks
 
 ### Starting Development
 ```bash
 # First time setup
-cp .env.example .env
-nano .env  # Edit for your JMRI server
 npm install
 
 # Daily development
 npm run dev  # Starts at http://localhost:5173
 ```
 
-### Testing Without Hardware
-```bash
-# Edit .env
-VITE_JMRI_MOCK_ENABLED=true
-VITE_JMRI_MOCK_DELAY=50
+Open http://localhost:5173 in your browser and configure your JMRI connection through the setup screen.
 
-# Restart dev server
-npm run dev
-```
+### Testing Without Hardware
+When the app loads, simply check the "Demo Mode" checkbox on the connection setup screen. No configuration files needed!
 
 ### Building for Production
 ```bash
 npm run build      # Type-checks and builds
 npm run preview    # Preview production build
+```
+
+### Running with Docker
+
+**Development mode** (with hot reload):
+```bash
+docker compose -f compose.dev.yaml up --build
+# Access at http://localhost:5173
+# Source files mounted as volumes - changes reflect immediately
+```
+
+**Production mode** (local build):
+```bash
+docker compose up --build
+# Access at http://localhost:8080
+# Full production build with nginx
+```
+
+**Production mode** (from Docker Hub):
+```bash
+docker compose up
+# Pulls yamanote1138/trains-thechad-io:latest
+# Access at http://localhost:8080
+```
+
+**Customize the port:**
+```bash
+# Use a different port (e.g., 3000)
+PORT=3000 docker compose up -d
+
+# Or create a .env file
+echo "PORT=3000" > .env
+docker compose up -d
+```
+
+**Stop containers**:
+```bash
+docker compose down
+# Or for dev: docker compose -f compose.dev.yaml down
 ```
 
 ### Updating Dependencies
@@ -310,7 +461,7 @@ npm install package@version   # Install specific version
 
 ### WebSocket Connection Failures
 - Check JMRI WebSocket server is enabled in preferences
-- Verify correct host/port in `.env`
+- Verify correct host/port in connection setup screen
 - Ensure browser and JMRI on same network
 - Check browser console for WebSocket errors
 
@@ -355,4 +506,4 @@ These are NOT committed work, just ideas for consideration:
 
 ---
 
-*Last Updated: February 2026 (v3.2.0)*
+*Last Updated: February 2026 (v3.4.0)*
