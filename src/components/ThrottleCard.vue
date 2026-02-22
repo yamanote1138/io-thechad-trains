@@ -23,12 +23,12 @@
         <label class="form-label small mb-1">Speed: {{ Math.round(throttle.speed * 100) }}%</label>
         <div class="btn-group w-100 gap-1" role="group" aria-label="Speed control">
           <button
-            v-for="level in powerLevels"
+            v-for="(level, index) in powerLevels"
             :key="level"
             class="btn"
-            :class="throttle.speed >= level ? 'btn-warning' : 'btn-secondary'"
-            @click="setPowerLevel(level)"
-            :disabled="controlsDisabled || isRamping"
+            :class="getSpeedButtonClass(level, index)"
+            @click="setPowerLevel(level, index)"
+            :disabled="controlsDisabled"
           >
             &nbsp;
           </button>
@@ -39,12 +39,16 @@
       <div class="btn-group w-100 mb-2 mb-sm-3" role="group" aria-label="Direction and stop controls">
         <button
           type="button"
-          class="btn btn-primary col"
+          class="btn col"
+          :class="throttle.directionVerified ? 'btn-primary' : 'btn-warning'"
           @click="toggleDirection"
           :disabled="controlsDisabled"
         >
-          <i :class="throttle.direction ? 'fas fa-arrow-right' : 'fas fa-arrow-left'"></i>
-          {{ throttle.direction ? 'Forward' : 'Reverse' }}
+          <i v-if="!throttle.directionVerified" class="fas fa-shuffle"></i>
+          <i v-else-if="throttle.direction" class="fas fa-arrow-right"></i>
+          <i v-else class="fas fa-arrow-left"></i>
+          <span v-if="!throttle.directionVerified">Unknown</span>
+          <span v-else>{{ throttle.direction ? 'Forward' : 'Reverse' }}</span>
         </button>
         <button
           type="button"
@@ -80,6 +84,7 @@ import { ref, computed } from 'vue'
 import { useJmri } from '@/composables/useJmri'
 import { PowerState } from 'jmri-client'
 import type { Throttle } from '@/types/jmri'
+import { Direction } from '@/types/jmri'
 import LocomotiveHeader from './LocomotiveHeader.vue'
 
 const props = defineProps<{
@@ -91,14 +96,60 @@ const { isConnected, power, setThrottleSpeed, setThrottleDirection, setThrottleF
 const isReleasing = ref(false)
 const isRamping = ref(false)
 const emergencyStop = ref(false)
+const targetSpeed = ref<number | null>(null)
 
-// Power level buttons: 0%, 10%, 20%, 40%, 60%, 80%, 100%
-const powerLevels = [0, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+// Power level buttons: 10 segments at 10% each
+const powerLevels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+const RAMP_TIME_PER_SEGMENT = 2000 // 2 seconds per segment
 
 // Disable controls when not connected or power is off
 const controlsDisabled = computed(() => {
   return !isConnected.value || power.value !== PowerState.ON
 })
+
+/**
+ * Determine speed button styling based on current speed position
+ * - Speed >= segment target: bright (reached this segment)
+ * - Speed between previous and current segment: dim (approaching this segment)
+ * - Speed below previous segment: grey (not reached yet)
+ *
+ * Color zones:
+ * - Segments 1-3 (10-30%): RED
+ * - Segments 4-7 (40-70%): YELLOW
+ * - Segments 8-10 (80-100%): GREEN
+ */
+function getSpeedButtonClass(level: number, index: number): string {
+  const currentSpeed = props.throttle.speed
+
+  // Determine color zone based on index
+  let colorClass: string
+  if (index <= 2) {
+    // First 3 segments: RED
+    colorClass = 'btn-danger'
+  } else if (index <= 6) {
+    // Middle 4 segments: YELLOW
+    colorClass = 'btn-warning'
+  } else {
+    // Last 3 segments: GREEN
+    colorClass = 'btn-success'
+  }
+
+  // Determine previous segment threshold (0 for first segment)
+  const previousLevel = index > 0 ? powerLevels[index - 1] : 0
+
+  // Reached or passed this segment: BRIGHT
+  if (currentSpeed >= level) {
+    return colorClass
+  }
+
+  // Between previous and this segment: DIM (approaching)
+  if (currentSpeed > previousLevel) {
+    return `${colorClass} opacity-50`
+  }
+
+  // Below previous segment: GREY (not reached yet)
+  return 'btn-secondary'
+}
 
 // Compute function buttons list (sorted by function number)
 const functionButtons = computed(() => {
@@ -122,26 +173,66 @@ const functionButtons = computed(() => {
 })
 
 /**
- * Set power level with smooth logarithmic ramping
- * Duration scales with distance to simulate realistic momentum and inertia
+ * Set power level with segment-based ramping
+ * - Each segment = 2 seconds ramp time
+ * - Clicking unlit: ramp from leftmost lit to clicked (sum of segments traversed)
+ * - Clicking lit: ramp from rightmost lit to segment left of clicked
+ * - Clicking first lit segment: ramp to 0%
  */
-async function setPowerLevel(targetSpeed: number) {
+async function setPowerLevel(clickedLevel: number, clickedIndex: number) {
   if (isRamping.value) return
 
   const currentSpeed = props.throttle.speed
-  if (currentSpeed === targetSpeed) return
+
+  // Find leftmost and rightmost lit segments
+  let leftmostLitIndex = -1
+  let rightmostLitIndex = -1
+
+  for (let i = 0; i < powerLevels.length; i++) {
+    if (currentSpeed >= powerLevels[i]) {
+      if (leftmostLitIndex === -1) leftmostLitIndex = i
+      rightmostLitIndex = i
+    }
+  }
+
+  // Determine if clicking lit or unlit segment
+  const isSegmentLit = currentSpeed >= clickedLevel
+
+  let targetSpeedValue: number
+  let segmentDistance: number
+
+  if (isSegmentLit) {
+    // Clicking a lit segment - ramp DOWN
+    if (clickedIndex === 0) {
+      // Special case: clicking first segment goes to 0
+      targetSpeedValue = 0
+      // Distance is all currently lit segments
+      segmentDistance = rightmostLitIndex + 1
+    } else {
+      // Target is the segment to the left of clicked
+      const targetIndex = clickedIndex - 1
+      targetSpeedValue = powerLevels[targetIndex]
+      // Distance from rightmost lit to target
+      segmentDistance = rightmostLitIndex - targetIndex
+    }
+  } else {
+    // Clicking an unlit segment - ramp UP
+    targetSpeedValue = clickedLevel
+    // Distance from leftmost lit (or 0 if none lit) to clicked
+    const fromIndex = leftmostLitIndex === -1 ? -1 : leftmostLitIndex
+    segmentDistance = clickedIndex - fromIndex
+  }
+
+  // If already at target, do nothing
+  if (currentSpeed === targetSpeedValue) return
 
   emergencyStop.value = false
   isRamping.value = true
+  targetSpeed.value = clickedLevel // For visual feedback
 
   try {
-    const interval = 150 // ms between updates - hardware-friendly
-    const distance = Math.abs(targetSpeed - currentSpeed)
-
-    // Scale duration with distance - slower for model railroading realism
-    // Low speed operations (0-20%) should be very gradual to show inertia
-    const baseDuration = 8000 // 8 seconds for full 0-100% range
-    const duration = Math.max(800, baseDuration * distance) // Min 800ms
+    const duration = segmentDistance * RAMP_TIME_PER_SEGMENT
+    const interval = 100 // ms between updates - smooth animation
     const steps = Math.max(5, Math.ceil(duration / interval))
 
     for (let i = 1; i <= steps; i++) {
@@ -151,14 +242,9 @@ async function setPowerLevel(targetSpeed: number) {
         break
       }
 
-      // Logarithmic interpolation for smooth acceleration/deceleration
+      // Linear interpolation for consistent segment timing
       const t = i / steps
-      // Use exponential easing for more natural feeling
-      const eased = currentSpeed < targetSpeed
-        ? Math.pow(t, 5.0) // Very steep curve - slow start to overcome inertia
-        : 1 - Math.pow(1 - t, 0.5) // Ease in when decelerating (slow start, fast finish)
-
-      const speed = currentSpeed + (targetSpeed - currentSpeed) * eased
+      const speed = currentSpeed + (targetSpeedValue - currentSpeed) * t
       await setThrottleSpeed(props.throttle.address, speed)
 
       // Don't wait after the last step
@@ -169,21 +255,25 @@ async function setPowerLevel(targetSpeed: number) {
 
     // Ensure we hit the exact target (unless emergency stopped)
     if (!emergencyStop.value) {
-      await setThrottleSpeed(props.throttle.address, targetSpeed)
+      await setThrottleSpeed(props.throttle.address, targetSpeedValue)
     }
   } finally {
     isRamping.value = false
+    targetSpeed.value = null
   }
 }
 
 async function toggleDirection() {
   const currentSpeed = props.throttle.speed
-  const newDirection = !props.throttle.direction
+  const newDirection = props.throttle.direction === Direction.FORWARD ? Direction.REVERSE : Direction.FORWARD
 
   // If moving, ramp down to 0, pause, switch direction, then ramp back up
   if (currentSpeed > 0) {
-    // Ramp down to 0
-    await setPowerLevel(0)
+    // Find the index of the current speed level
+    const currentIndex = powerLevels.findIndex(level => Math.abs(level - currentSpeed) < 0.01) || 0
+
+    // Ramp down to 0 by clicking first segment
+    await setPowerLevel(powerLevels[0], 0)
 
     // Pause after stopping (realistic momentum/settling time)
     await new Promise(resolve => setTimeout(resolve, 1800))
@@ -192,7 +282,7 @@ async function toggleDirection() {
     await setThrottleDirection(props.throttle.address, newDirection)
 
     // Ramp back up to previous speed
-    await setPowerLevel(currentSpeed)
+    await setPowerLevel(currentSpeed, currentIndex)
   } else {
     // If stopped, just switch direction
     await setThrottleDirection(props.throttle.address, newDirection)

@@ -18,6 +18,7 @@ export interface RosterEntry {
 export interface Throttle extends RosterEntry {
   speed: number;
   direction: Direction;
+  directionVerified: boolean; // True if direction has been confirmed by JMRI
   functions: Record<string, ThrottleFunction>;
   acquiredAt: number; // Timestamp when throttle was acquired
 }

@@ -200,6 +200,7 @@ export function useJmri() {
         ...existing,
         speed: data.speed !== undefined ? data.speed : existing.speed,
         direction: data.forward !== undefined ? data.forward : existing.direction,
+        directionVerified: data.forward !== undefined ? true : existing.directionVerified,
         functions: Object.keys(functionUpdates).length > 0
           ? { ...existing.functions, ...functionUpdates }
           : existing.functions
@@ -320,6 +321,12 @@ export function useJmri() {
     try {
       logger.debug(`Setting throttle ${address} direction to ${direction ? 'FORWARD' : 'REVERSE'}`)
       await jmriClient.setThrottleDirection(throttleId, direction)
+
+      // Mark direction as verified after successful command
+      const throttle = jmriState.value.throttles.get(address)
+      if (throttle) {
+        jmriState.value.throttles.set(address, { ...throttle, directionVerified: true })
+      }
     } catch (error) {
       logger.error('Failed to set throttle direction:', error)
       throw error
@@ -381,12 +388,20 @@ export function useJmri() {
         // Convert WebSocket protocol to HTTP for image URLs
         const httpProtocol = currentSettings.protocol === 'wss' ? 'https' : 'http'
 
-        // Real server provides icon path
-        const thumbnailUrl = entryData.icon
-          ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}${entryData.icon}`
-          : entryData.name
-          ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
-          : undefined
+        // Thumbnail URL handling
+        let thumbnailUrl: string | undefined
+
+        if (currentSettings.mockEnabled) {
+          // In mock mode, use local images from /locomotives/ directory
+          thumbnailUrl = `/locomotives/${entryData.name}.png`
+        } else {
+          // Real server provides icon path
+          thumbnailUrl = entryData.icon
+            ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}${entryData.icon}`
+            : entryData.name
+            ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
+            : undefined
+        }
 
         // Extract function keys from roster entry
         // JMRI v5.x returns functionKeys as an array: [{ name: "F0", label: "headlight", lockable: true, ... }]
@@ -466,7 +481,8 @@ export function useJmri() {
       const throttle: Throttle = {
         ...rosterEntry,
         speed: 0,
-        direction: true, // Direction.FORWARD
+        direction: true, // Direction.FORWARD (default, unverified)
+        directionVerified: false, // Will be verified when JMRI sends first update
         functions,
         acquiredAt: Date.now()
       }

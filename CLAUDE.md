@@ -16,6 +16,10 @@ This file contains project conventions, architecture decisions, and development 
 ### Current Version
 v3.5.0 - **Major Change**: Runtime configuration through web UI. Connection settings now configured on first launch instead of environment variables.
 
+## User Context & Preferences
+
+**Train Enthusiasm**: The user is specifically interested in Japanese trains, particularly the Yamanote Line (Tokyo's iconic green loop line). When discussing trains in conversation, examples, or explanations, favor Japanese railway references when appropriate. This is context for communication style only - do NOT add Japanese train references to code, documentation, or user-facing features.
+
 ## Architecture Principles
 
 ### Pure Frontend SPA
