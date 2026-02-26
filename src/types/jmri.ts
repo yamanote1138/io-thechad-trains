@@ -1,4 +1,8 @@
 import type { PowerState } from 'jmri-client'
+import { TurnoutState } from 'jmri-client'
+
+// Re-export for use in components
+export { TurnoutState }
 
 export enum Direction {
   FORWARD = true,
@@ -29,8 +33,17 @@ export interface ThrottleFunction {
   value: boolean;
 }
 
+export interface TurnoutData {
+  name: string;           // System name: LT1, IT42, etc.
+  userName?: string;      // User-friendly name
+  state: TurnoutState;    // Current state
+  inverted?: boolean;     // Whether turnout logic is inverted
+  comment?: string;       // User comment
+}
+
 export interface JmriState {
   power: PowerState;
   roster: Map<number, RosterEntry>;
   throttles: Map<number, Throttle>;
+  turnouts: Map<string, TurnoutData>;
 }

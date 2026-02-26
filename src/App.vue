@@ -25,6 +25,9 @@
     <div class="container-fluid px-3 pt-2 pt-sm-3">
       <!-- Throttle List -->
       <ThrottleList />
+
+      <!-- Turnout List -->
+      <TurnoutList />
     </div>
   </div>
 </template>
@@ -36,6 +39,7 @@ import { logger } from '@/utils/logger'
 import ConnectionSetup from '@/components/ConnectionSetup.vue'
 import PowerControl from '@/components/PowerControl.vue'
 import ThrottleList from '@/components/ThrottleList.vue'
+import TurnoutList from '@/components/TurnoutList.vue'
 import type { ConnectionSettings } from '@/components/ConnectionSetup.vue'
 
 const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName } = useJmri()

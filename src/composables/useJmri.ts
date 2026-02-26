@@ -28,7 +28,8 @@ export interface JmriConnectionSettings {
 const jmriState = ref<JmriState>({
   power: 0, // PowerState.UNKNOWN
   roster: new Map(),
-  throttles: new Map()
+  throttles: new Map(),
+  turnouts: new Map()
 })
 
 const connectionState = ref<ConnectionState>(ConnectionState.DISCONNECTED)
@@ -94,6 +95,13 @@ export function useJmri() {
       } catch (error) {
         logger.error('Failed to get initial power state:', error)
       }
+
+      // Fetch turnouts
+      try {
+        await fetchTurnouts()
+      } catch (error) {
+        logger.error('Failed to fetch turnouts on connect:', error)
+      }
     })
 
     jmriClient.on('hello', (data: any) => {
@@ -147,6 +155,19 @@ export function useJmri() {
     jmriClient.on('power:changed', (state: any) => {
       logger.info('Power state changed:', state === 2 ? 'ON' : state === 4 ? 'OFF' : 'UNKNOWN')
       jmriState.value.power = state
+    })
+
+    jmriClient.on('turnout:changed', (name: string, state: any) => {
+      logger.info(`Turnout ${name} changed to`, state === 2 ? 'CLOSED' : state === 4 ? 'THROWN' : state === 8 ? 'INCONSISTENT' : 'UNKNOWN')
+
+      // Update existing turnout or add new one
+      const existing = jmriState.value.turnouts.get(name)
+      if (existing) {
+        jmriState.value.turnouts.set(name, { ...existing, state })
+      } else {
+        // Turnout not in our list - add with minimal data
+        jmriState.value.turnouts.set(name, { name, state })
+      }
     })
 
     jmriClient.on('throttle:updated', (throttleId: string, data: any) => {
@@ -442,6 +463,38 @@ export function useJmri() {
   }
 
   /**
+   * Fetch turnouts from JMRI
+   */
+  async function fetchTurnouts() {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
+      logger.error('Cannot fetch turnouts: JMRI client not connected')
+      return
+    }
+
+    try {
+      logger.info('Fetching turnouts from JMRI')
+      const turnouts = await jmriClient.listTurnouts()
+
+      // Process turnout entries
+      for (const turnout of turnouts) {
+        const turnoutData = {
+          name: turnout.name,
+          userName: turnout.userName,
+          state: turnout.state ?? 0, // Default to UNKNOWN
+          inverted: turnout.inverted,
+          comment: turnout.comment
+        }
+        jmriState.value.turnouts.set(turnout.name, turnoutData)
+      }
+
+      logger.info(`Loaded ${turnouts.length} turnouts from JMRI`)
+    } catch (error) {
+      logger.error('Failed to fetch turnouts:', error)
+      throw error
+    }
+  }
+
+  /**
    * Acquire a throttle for control
    */
   async function acquireThrottle(address: number) {
@@ -598,6 +651,59 @@ export function useJmri() {
   }
 
   /**
+   * Set turnout to CLOSED (straight through)
+   */
+  async function closeTurnout(name: string) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
+      logger.error('Cannot close turnout: JMRI client not connected')
+      return
+    }
+
+    try {
+      logger.info(`Closing turnout ${name}`)
+      await jmriClient.closeTurnout(name)
+    } catch (error) {
+      logger.error(`Failed to close turnout ${name}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Set turnout to THROWN (diverging route)
+   */
+  async function throwTurnout(name: string) {
+    if (!jmriClient || connectionState.value !== ConnectionState.CONNECTED) {
+      logger.error('Cannot throw turnout: JMRI client not connected')
+      return
+    }
+
+    try {
+      logger.info(`Throwing turnout ${name}`)
+      await jmriClient.throwTurnout(name)
+    } catch (error) {
+      logger.error(`Failed to throw turnout ${name}:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Toggle turnout state (CLOSED <-> THROWN)
+   */
+  async function toggleTurnout(name: string) {
+    const turnout = jmriState.value.turnouts.get(name)
+    if (!turnout) {
+      logger.error(`No turnout found with name ${name}`)
+      return
+    }
+
+    if (turnout.state === 2) { // TurnoutState.CLOSED
+      await throwTurnout(name)
+    } else {
+      await closeTurnout(name)
+    }
+  }
+
+  /**
    * Disconnect from JMRI and clean up
    */
   function disconnect() {
@@ -619,6 +725,7 @@ export function useJmri() {
     throttleIds.clear()
     jmriState.value.throttles.clear()
     jmriState.value.roster.clear()
+    jmriState.value.turnouts.clear()
     jmriState.value.power = 0
     railroadName.value = 'Model Railroad'
   }
@@ -635,6 +742,7 @@ export function useJmri() {
     isMockMode: computed(() => currentSettings?.mockEnabled ?? false),
     roster: computed(() => Array.from(jmriState.value.roster.values())),
     throttles: computed(() => Array.from(jmriState.value.throttles.values())),
+    turnouts: computed(() => Array.from(jmriState.value.turnouts.values())),
     power: computed(() => jmriState.value.power),
 
     // Methods
@@ -645,10 +753,14 @@ export function useJmri() {
     setThrottleDirection,
     setThrottleFunction,
     fetchRoster,
+    fetchTurnouts,
     acquireThrottle,
     idleThrottle,
     releaseThrottle,
     stopAllThrottles,
-    releaseAllThrottles
+    releaseAllThrottles,
+    closeTurnout,
+    throwTurnout,
+    toggleTurnout
   }
 }
