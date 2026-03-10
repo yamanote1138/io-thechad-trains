@@ -2,9 +2,6 @@
   <div>
     <!-- Turnouts Section -->
     <div v-if="sortedTurnouts.length > 0">
-      <h5 class="text-light mb-2 mt-3 mt-sm-4">
-        <i class="fas fa-code-branch"></i> Turnouts
-      </h5>
       <div class="d-flex flex-wrap gap-2">
         <button
           v-for="turnout in sortedTurnouts"

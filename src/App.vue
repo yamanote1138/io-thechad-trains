@@ -19,15 +19,34 @@
         <PowerControl @logout="handleLogout" />
       </div>
       <hr class="divider m-0">
+
+      <!-- Tab Navigation -->
+      <ul class="nav nav-pills nav-tab-bar px-3 py-2 gap-2">
+        <li class="nav-item">
+          <button
+            class="nav-link tab-pill small py-1 px-3"
+            :class="{ active: activeTab === 'locos' }"
+            @click="activeTab = 'locos'"
+          >
+            <i class="fas fa-train"></i> Locomotives
+          </button>
+        </li>
+        <li class="nav-item">
+          <button
+            class="nav-link tab-pill small py-1 px-3"
+            :class="{ active: activeTab === 'turnouts' }"
+            @click="activeTab = 'turnouts'"
+          >
+            <i class="fas fa-code-branch"></i> Turnouts
+          </button>
+        </li>
+      </ul>
     </div>
 
     <!-- Scrollable Content -->
     <div class="container-fluid px-3 pt-2 pt-sm-3">
-      <!-- Throttle List -->
-      <ThrottleList />
-
-      <!-- Turnout List -->
-      <TurnoutList />
+      <ThrottleList v-show="activeTab === 'locos'" />
+      <TurnoutList v-show="activeTab === 'turnouts'" />
     </div>
   </div>
 </template>
@@ -46,6 +65,7 @@ import type { ConnectionSettings } from '@/components/ConnectionSetup.vue'
 const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName, jmriVersion } = useJmri()
 
 const isInitialized = ref(false)
+const activeTab = ref<'locos' | 'turnouts'>('locos')
 const setupRef = ref<InstanceType<typeof ConnectionSetup>>()
 const connectionHost = ref('')
 const connectionMock = ref(false)
@@ -183,5 +203,26 @@ const handleLogout = () => {
   border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   opacity: 0.5;
+}
+
+.nav-tab-bar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tab-pill {
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.tab-pill:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tab-pill.active {
+  color: #fff;
+  background-color: #0d6efd;
+  border-color: #0d6efd;
 }
 </style>

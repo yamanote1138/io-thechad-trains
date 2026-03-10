@@ -2,10 +2,7 @@
   <div>
     <!-- All Locomotives -->
     <div v-if="sortedRoster.length > 0">
-      <h4 class="text-light mb-1">
-        <i class="fas fa-train"></i> Locomotives
-      </h4>
-      <p v-if="power === PowerState.ON" class="text-muted mb-2" style="font-size: 0.75rem;">
+      <p v-if="power === PowerState.ON" class="text-muted mb-1" style="font-size: 0.75rem;">
         <i class="fas fa-hand-pointer"></i> Tap to acquire/release
       </p>
       <div class="row">
