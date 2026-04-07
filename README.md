@@ -88,6 +88,13 @@ docker compose up -d
 ```
 Access at http://localhost:8080
 
+**With DCC-EX tram support:**
+```bash
+# Set the DCC-EX CommandStation IP to enable the proxy
+DCCEX_HOST=192.168.1.231 docker compose up -d
+# Proxy listens on port 2561, relays to DCC-EX at port 2560
+```
+
 **Customize the port:**
 ```bash
 # Use a different port (e.g., 3000)
@@ -127,6 +134,7 @@ Or use GitHub Pages, Netlify, Vercel, etc.
 - **Throttle Control** - Speed, direction, and functions for locomotives
 - **Turnout Control** - Switch turnout positions
 - **Light Control** - Toggle LCC lights (works independently of track power)
+- **DC Tram Control** - Direct DCC-EX connection for DC tram loops (optional)
 - **Real-time Updates** - WebSocket connection for instant feedback
 - **Responsive Design** - Works on desktop, tablet, and mobile
 
@@ -134,24 +142,28 @@ Or use GitHub Pages, Netlify, Vercel, etc.
 
 This is a pure frontend single-page application (SPA) that connects directly to JMRI via WebSocket. There is no backend server required - the browser communicates directly with JMRI since they're on the same network.
 
+For DC tram control, an optional WebSocket-to-TCP proxy connects directly to a DCC-EX EX-CommandStation, bypassing JMRI. The proxy runs inside the same Docker container.
+
 ```
-┌─────────────────────┐
-│   Browser (Vue 3)   │
-│                     │
-│  - Train controls   │
-│  - Power controls   │
-│  - Turnout controls │
-│  - Light controls   │
-│  - Throttle UI      │
-└──────────┬──────────┘
-           │ WebSocket
-           │ (jmri-client)
-           ▼
-┌─────────────────────┐
-│   JMRI Server       │
-│  astrotrain.local   │
-│     :12080          │
-└─────────────────────┘
+┌──────────────────────┐
+│   Browser (Vue 3)    │
+│                      │
+│  - Train controls    │
+│  - Power controls    │
+│  - Turnout controls  │
+│  - Light controls    │
+│  - Tram controls     │
+└───────┬─────────┬────┘
+        │         │
+        │ ws      │ ws
+        │         │
+        ▼         ▼
+┌────────────┐  ┌──────────────────┐
+│ JMRI :12080│  │ DCC-EX Proxy     │
+│ (DCC locos │  │ :2561            │
+│  turnouts  │  │  ┌─WiThrottle TCP│──→ DCC-EX :2560
+│  lights)   │  │  └─Native TCP    │──→ DCC-EX :2560
+└────────────┘  └──────────────────┘
 ```
 
 ## Troubleshooting

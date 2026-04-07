@@ -15,7 +15,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 20+** required
 
 ### Current Version
-v4.6.0 - Lights control via LCC, underline tab navigation, jmri-client 4.1.1
+v4.7.0 - DCC-EX tram control via direct WiThrottle connection
 
 ## User Context & Preferences
 
@@ -28,6 +28,15 @@ v4.6.0 - Lights control via LCC, underline tab navigation, jmri-client 4.1.1
 - **Direct WebSocket connection** - Uses the jmri-client library to connect to JMRI's JSON WebSocket server (port 12080)
 - **Network requirement** - Browser and JMRI server must be on the same network
 - **Mock mode support** - Can run without hardware using simulated data for testing/demos
+
+### DCC-EX Direct Connection (v4.7.0+)
+- **Separate from JMRI** - DC tram control connects directly to DCC-EX EX-CommandStation
+- **WiThrottle protocol** - Throttle acquire/speed/direction/release via WiThrottle over WebSocket
+- **Dual-connection proxy** - WebSocket-to-TCP proxy opens two TCP connections per client: one WiThrottle (throttles), one native (power commands `<1>`/`<0>`)
+- **Why two connections?** - DCC-EX classifies connections by first message character (`<` = native, else WiThrottle) and locks them forever. WiThrottle `PPA` only controls MAIN tracks, not DC tracks. Native `<1>`/`<0>` controls ALL tracks including DC.
+- **Proxy runs in Docker** - Same container as Caddy, activated by `DCCEX_HOST` env var
+- **useDccEx composable** - Singleton state pattern matching useJmri. Power state from both WiThrottle `PPA` and native `<p>` responses.
+- **Tram addresses** - 30 (Track A / Inner Loop), 31 (Track B / Outer Loop) — filtered from main locomotive roster
 
 ### Key Architecture Decisions
 
@@ -79,8 +88,11 @@ v4.6.0 - Lights control via LCC, underline tab navigation, jmri-client 4.1.1
 │   │   ├── RosterCard.vue       # Locomotive roster display
 │   │   ├── ThrottleCard.vue     # Individual locomotive control
 │   │   ├── ThrottleList.vue     # List of active throttles
+│   │   ├── TramControl.vue      # DC tram control (DCC-EX direct)
 │   │   └── TurnoutList.vue      # Turnout toggle controls
 │   ├── composables/         # Reusable composition functions
+│   │   ├── ExtendedJmriClient.ts # Extended JMRI client (named power sources)
+│   │   ├── useDccEx.ts         # DCC-EX direct WiThrottle client (singleton)
 │   │   ├── useJmri.ts          # Main JMRI client (singleton)
 │   │   └── useWebSocket.ts     # WebSocket utilities
 │   ├── types/              # TypeScript type definitions
@@ -89,6 +101,9 @@ v4.6.0 - Lights control via LCC, underline tab navigation, jmri-client 4.1.1
 │   │   └── logger.ts          # Logging utility
 │   ├── App.vue             # Root component
 │   └── main.ts             # Application entry point
+├── proxy/                  # DCC-EX WebSocket-to-TCP proxy
+│   └── dccex-ws-proxy.mjs      # Dual-connection WS→TCP relay
+├── docker-entrypoint.sh    # Starts proxy + Caddy in container
 ├── debug/                  # Debug files (GITIGNORED - not committed)
 │   ├── *.mjs                   # Test scripts
 │   └── *.png                   # Screenshots
@@ -182,6 +197,9 @@ v4.6.0 - Lights control via LCC, underline tab navigation, jmri-client 4.1.1
      secure: boolean           // false = ws, true = wss
      mockEnabled: boolean      // Enable mock mode
      debugEnabled: boolean     // Enable debug logging
+     dccexEnabled: boolean     // Enable DCC-EX tram controller
+     dccexHost: string         // DCC-EX proxy host (default: same as JMRI host)
+     dccexPort: number         // DCC-EX proxy WS port (default: 2561)
    }
 
    // Settings converted to JmriConnectionSettings
@@ -280,9 +298,10 @@ The project includes Docker support for both development and production environm
 1. **Production Deployment**
    - Multi-stage Dockerfile builds optimized production image
    - Builder stage: Compiles Vue/TypeScript app with Node 20 Alpine
-   - Production stage: Serves static files via Caddy 2 Alpine
+   - Production stage: Node 20 Alpine with Caddy binary + DCC-EX proxy
    - Image published to Docker Hub: `yamanote1138/trains-thechad-io`
    - Includes health check endpoint
+   - DCC-EX proxy starts automatically when `DCCEX_HOST` env var is set
 
 2. **Docker Compose Files**
    - `compose.yaml` - Production deployment using pre-built registry image
@@ -311,6 +330,10 @@ The project includes Docker support for both development and production environm
    docker compose up -d
    # Access at http://localhost:8080
    # Configure JMRI connection in web UI
+
+   # With DCC-EX tram support:
+   DCCEX_HOST=192.168.1.231 docker compose up -d
+   # Proxy starts on port 2561, relays to DCC-EX at 192.168.1.231:2560
    ```
 
 3. **CI/CD Build Strategy**
@@ -526,4 +549,4 @@ These are NOT committed work, just ideas for consideration:
 
 ---
 
-*Last Updated: March 2026 (v4.6.0)*
+*Last Updated: April 2026 (v4.7.0)*
