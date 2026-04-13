@@ -15,7 +15,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 20+** required
 
 ### Current Version
-v4.7.0 - DCC-EX tram control via direct WiThrottle connection
+v4.7.1 - DCC-EX connection resilience and turnout LCC independence
 
 ## User Context & Preferences
 
@@ -35,7 +35,8 @@ v4.7.0 - DCC-EX tram control via direct WiThrottle connection
 - **Dual-connection proxy** - WebSocket-to-TCP proxy opens two TCP connections per client: one WiThrottle (throttles), one native (power commands `<1>`/`<0>`)
 - **Why two connections?** - DCC-EX classifies connections by first message character (`<` = native, else WiThrottle) and locks them forever. WiThrottle `PPA` only controls MAIN tracks, not DC tracks. Native `<1>`/`<0>` controls ALL tracks including DC.
 - **Proxy runs in Docker** - Same container as Caddy, activated by `DCCEX_HOST` env var
-- **useDccEx composable** - Singleton state pattern matching useJmri. Power state from both WiThrottle `PPA` and native `<p>` responses.
+- **Proxy message queuing** - Browser WS connects faster than proxy TCP to DCC-EX; proxy buffers early messages and flushes when TCP is ready
+- **useDccEx composable** - Singleton state pattern matching useJmri. Three-state connection (`disconnected`/`connecting`/`connected`). Power state from both WiThrottle `PPA` and native `<p>` responses. Queries native `<s>` on connect for true power state (WiThrottle greeting `PPA` can be stale).
 - **Tram addresses** - 30 (Track A / Inner Loop), 31 (Track B / Outer Loop) — filtered from main locomotive roster
 
 ### Key Architecture Decisions
@@ -58,10 +59,10 @@ v4.7.0 - DCC-EX tram control via direct WiThrottle connection
    - Always fetch initial power state on connection
    - Verify power state after setting to handle JMRI quirks
 
-6. **Lights / LCC Independence**
-   - Lights use LCC (Layout Command Control), independent of DCC track power
-   - Light controls remain enabled even when track power is OFF
-   - Only requires active JMRI connection (unlike turnouts/throttles which also need power)
+6. **Lights & Turnouts / LCC Independence**
+   - Lights and turnouts use LCC (Layout Command Control), independent of DCC track power
+   - Light and turnout controls remain enabled even when track power is OFF
+   - Only requires active JMRI connection (unlike throttles which also need power)
 
 4. **Heartbeat Interval**
    - Set to 15 seconds to prevent idle disconnects
@@ -89,7 +90,7 @@ v4.7.0 - DCC-EX tram control via direct WiThrottle connection
 │   │   ├── ThrottleCard.vue     # Individual locomotive control
 │   │   ├── ThrottleList.vue     # List of active throttles
 │   │   ├── TramControl.vue      # DC tram control (DCC-EX direct)
-│   │   └── TurnoutList.vue      # Turnout toggle controls
+│   │   └── TurnoutList.vue      # Turnout toggle controls (LCC)
 │   ├── composables/         # Reusable composition functions
 │   │   ├── ExtendedJmriClient.ts # Extended JMRI client (named power sources)
 │   │   ├── useDccEx.ts         # DCC-EX direct WiThrottle client (singleton)
@@ -401,10 +402,13 @@ The tag push triggers the Docker build workflow, which builds and publishes the 
 npm install
 
 # Daily development
-npm run dev  # Starts at http://localhost:5173
+npm run dev      # Vite only (JMRI features)
+npm run dev:all  # Vite + DCC-EX proxy (tram features)
 ```
 
 Open http://localhost:5173 in your browser and configure your JMRI connection through the setup screen.
+
+When using `dev:all`, the DCC-EX proxy starts on port 2561 and connects to the CommandStation at 192.168.1.231:2560 by default. Enable DCC-EX in the connection setup screen (host: `localhost`, port: `2561`).
 
 ### Testing Without Hardware
 When the app loads, simply check the "Demo Mode" checkbox on the connection setup screen. No configuration files needed!
@@ -492,7 +496,7 @@ npm install package@version   # Install specific version
 - Lights use LCC, independent of DCC track power
 - Fetched on connect via `listLights()`, real-time updates via `light:changed` event
 - Toggle between ON (LightState.ON=2) and OFF (LightState.OFF=4)
-- LightList component NOT disabled when track power is off (unlike turnouts/throttles)
+- LightList component NOT disabled when track power is off (unlike throttles)
 
 ### Power Control Quirks
 - JMRI power state can be inconsistent immediately after setting
@@ -549,4 +553,4 @@ These are NOT committed work, just ideas for consideration:
 
 ---
 
-*Last Updated: April 2026 (v4.7.0)*
+*Last Updated: April 2026 (v4.7.1)*

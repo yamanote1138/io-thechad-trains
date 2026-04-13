@@ -1,6 +1,6 @@
 {
   "name": "io-thechad-trains",
-  "version": "4.7.0",
+  "version": "4.7.1",
   "type": "module",
   "private": true,
   "engines": {
@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:all": "node proxy/dccex-ws-proxy.mjs & vite",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit"
