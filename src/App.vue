@@ -202,8 +202,9 @@ const handleConnect = async () => {
         }
 
         if (cfg.haEnabled && cfg.haUrl && cfg.haToken && cfg.haArea) {
-          logger.info('Connecting to Home Assistant at', cfg.haUrl)
-          ha.connect(cfg.haUrl, cfg.haToken, cfg.haArea)
+          const haWsUrl = cfg.haUrl.replace(/^http/, 'ws').replace(/\/?$/, '/api/websocket')
+          logger.info('Connecting to Home Assistant at', haWsUrl)
+          ha.connect(haWsUrl, cfg.haToken, cfg.haArea)
         }
         haEnabled.value = cfg.haEnabled && !!cfg.haUrl
 
