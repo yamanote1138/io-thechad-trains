@@ -20,11 +20,11 @@
     <!-- Speed control -->
     <div class="mb-2 sm:mb-3">
       <label class="text-sm mb-1 block text-neutral-300">Speed: {{ Math.round(throttle.speed * 100) }}%</label>
-      <div class="flex w-full gap-1" role="group" aria-label="Speed control">
+      <div class="flex w-full gap-1 md:gap-1.5" role="group" aria-label="Speed control">
         <button
           v-for="(level, index) in powerLevels"
           :key="level"
-          class="speed-segment flex-1 h-8 rounded transition-colors"
+          class="speed-segment flex-1 h-8 md:h-11 rounded transition-colors"
           :class="getSpeedButtonClass(level, index)"
           @click="setPowerLevel(level, index)"
           :disabled="controlsDisabled"
@@ -35,7 +35,7 @@
     </div>
 
     <!-- Direction and Stop buttons -->
-    <div class="flex w-full gap-1 mb-2 sm:mb-3" role="group" aria-label="Direction and stop controls">
+    <div class="flex w-full gap-1 md:gap-2 mb-2 sm:mb-3" role="group" aria-label="Direction and stop controls">
       <UButton
         class="flex-1"
         :color="throttle.directionVerified ? 'primary' : 'warning'"
@@ -75,7 +75,7 @@
     </div>
 
     <!-- Function buttons -->
-    <div v-if="functionButtons.length > 0" class="flex flex-wrap gap-1" role="group">
+    <div v-if="functionButtons.length > 0" class="flex flex-wrap gap-1 md:gap-2" role="group">
       <UButton
         v-for="fn in functionButtons"
         :key="fn.key"

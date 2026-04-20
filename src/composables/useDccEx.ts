@@ -40,6 +40,7 @@ const connectionState = ref<DccExConnectionState>('disconnected')
 const powerState = ref<'on' | 'off' | 'unknown'>('unknown')
 const throttles = ref(new Map<number, DccExThrottle>())
 const roster = ref<DccExRosterEntry[]>([])
+let defaultPwmFrequency = 3 // Supersonic
 
 function addrKey(address: number, isLong: boolean): string {
   return `${isLong ? 'L' : 'S'}${address}`
@@ -387,6 +388,14 @@ export function useDccEx() {
     logger.info(`[DCC-EX] Set PWM frequency for address ${address} to index ${clamped}`)
   }
 
+  function setDefaultPwmFrequency(freqIndex: number): void {
+    defaultPwmFrequency = Math.max(0, Math.min(3, Math.floor(freqIndex)))
+  }
+
+  function getDefaultPwmFrequency(): number {
+    return defaultPwmFrequency
+  }
+
   return {
     // State
     isConnected: computed(() => connectionState.value === 'connected'),
@@ -406,5 +415,7 @@ export function useDccEx() {
     setDirection,
     eStop,
     setPwmFrequency,
+    setDefaultPwmFrequency,
+    getDefaultPwmFrequency,
   }
 }

@@ -38,7 +38,7 @@
     </div>
 
     <!-- Track Controls -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
       <UCard
         v-for="config in TRAM_CONFIGS"
         :key="config.address"
@@ -83,11 +83,11 @@
             <label class="text-sm mb-1 block text-neutral-300">
               Speed: {{ getSpeedPercent(config.address) }}%
             </label>
-            <div class="flex w-full gap-1" role="group" aria-label="Speed control">
+            <div class="flex w-full gap-1 md:gap-1.5" role="group" aria-label="Speed control">
               <button
                 v-for="(level, index) in powerLevels"
                 :key="level"
-                class="speed-segment flex-1 h-8 rounded transition-colors"
+                class="speed-segment flex-1 h-8 md:h-11 rounded transition-colors"
                 :class="getSpeedButtonClass(config.address, level, index)"
                 @click="handleSetPowerLevel(config.address, level, index)"
                 :disabled="controlsDisabled || isRamping[config.address]"
@@ -98,7 +98,7 @@
           </div>
 
           <!-- Direction and Stop buttons -->
-          <div class="flex w-full gap-1" role="group" aria-label="Direction and stop controls">
+          <div class="flex w-full gap-1 md:gap-2" role="group" aria-label="Direction and stop controls">
             <UButton
               class="flex-1"
               color="primary"
@@ -134,18 +134,6 @@
             </UButton>
           </div>
 
-          <!-- PWM Frequency -->
-          <div class="mt-2 sm:mt-3 flex items-center gap-2">
-            <label class="text-sm text-neutral-400 whitespace-nowrap">PWM:</label>
-            <USelect
-              :model-value="pwmFrequency[config.address]"
-              :items="PWM_FREQUENCIES"
-              size="xs"
-              class="flex-1"
-              :disabled="!dccex.isConnected.value"
-              @update:model-value="(val: number) => handleFrequencyChange(config.address, val)"
-            />
-          </div>
         </div>
       </UCard>
     </div>
@@ -165,13 +153,6 @@ const TRAM_CONFIGS = [
   { address: 31, label: 'Track 2', sublabel: 'Outer Loop' }
 ] as const
 
-const PWM_FREQUENCIES = [
-  { label: '131 Hz', value: 0 },
-  { label: '490 Hz', value: 1 },
-  { label: '3.4 kHz', value: 2 },
-  { label: 'Supersonic', value: 3 },
-]
-
 // JMRI for roster images only
 const { jmriState } = useJmri()
 
@@ -180,7 +161,6 @@ const dccex = useDccEx()
 
 const isPowerBusy = ref(false)
 watch(() => dccex.powerState.value, () => { isPowerBusy.value = false })
-const pwmFrequency = reactive<Record<number, number>>({ 30: 1, 31: 1 })
 const isRamping = reactive<Record<number, boolean>>({})
 const stopFlags = reactive<Record<number, boolean>>({})
 
@@ -230,7 +210,10 @@ function getSpeedPercent(address: number): number {
 }
 
 function handleAcquire(address: number) {
-  dccex.acquireThrottle(address, false) // short address
+  dccex.acquireThrottle(address, false)
+  setTimeout(() => {
+    dccex.setPwmFrequency(address, dccex.getDefaultPwmFrequency())
+  }, 500)
 }
 
 /**
@@ -355,12 +338,6 @@ async function handleBrake(address: number) {
     await new Promise(resolve => setTimeout(resolve, 50))
   }
   await handleSetPowerLevel(address, powerLevels[0], 0)
-}
-
-function handleFrequencyChange(address: number, value: number | string) {
-  const freq = Number(value)
-  pwmFrequency[address] = freq
-  dccex.setPwmFrequency(address, freq)
 }
 
 function handleEmergencyStop(address: number) {

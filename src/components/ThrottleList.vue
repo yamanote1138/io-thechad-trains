@@ -5,7 +5,7 @@
       <p v-if="power === PowerState.ON" class="text-neutral-400 mb-1 text-xs">
         <UIcon name="i-heroicons-hand-raised" /> Tap to acquire/release
       </p>
-      <div class="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-0">
+      <div class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-0 md:gap-3">
         <div
           v-for="entry in sortedRoster"
           :key="'loco-' + entry.address"

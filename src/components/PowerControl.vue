@@ -1,5 +1,5 @@
 <template>
-  <div class="flex w-full gap-1 mb-2 sm:mb-3" role="group">
+  <div class="flex w-full gap-1 md:gap-2 mb-2 sm:mb-3" role="group">
     <!-- Combined Connection Status Indicator -->
     <UButton
       size="sm"
@@ -34,12 +34,12 @@
     <UButton
       color="neutral"
       @click="handleLogout"
-      title="Disconnect and Return to Setup"
+      title="Return to Welcome Screen"
     >
       <template #leading>
         <UIcon name="i-heroicons-arrow-right-on-rectangle" />
       </template>
-      <span class="hidden sm:inline">Logout</span>
+      <span class="hidden sm:inline">Exit</span>
     </UButton>
   </div>
 </template>

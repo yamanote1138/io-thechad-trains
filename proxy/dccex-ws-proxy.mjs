@@ -15,9 +15,9 @@ import { parseArgs } from 'util'
 
 const { values: args } = parseArgs({
   options: {
-    'ws-port':    { type: 'string', default: '2561' },
-    'dccex-host': { type: 'string', default: '192.168.1.231' },
-    'dccex-port': { type: 'string', default: '2560' },
+    'ws-port':    { type: 'string', default: process.env.DCCEX_WS_PORT || '2561' },
+    'dccex-host': { type: 'string', default: process.env.DCCEX_HOST || '192.168.1.231' },
+    'dccex-port': { type: 'string', default: process.env.DCCEX_PORT || '2560' },
   }
 })
 

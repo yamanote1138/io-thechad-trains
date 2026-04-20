@@ -15,6 +15,7 @@ declare module 'vue' {
     LightList: typeof import('./src/components/LightList.vue')['default']
     LocomotiveHeader: typeof import('./src/components/LocomotiveHeader.vue')['default']
     PowerControl: typeof import('./src/components/PowerControl.vue')['default']
+    RoomControl: typeof import('./src/components/RoomControl.vue')['default']
     RosterCard: typeof import('./src/components/RosterCard.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
@@ -25,8 +26,6 @@ declare module 'vue' {
     UAlert: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Alert.vue')['default']
     UButton: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Button.vue')['default']
     UCard: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Card.vue')['default']
-    UCheckbox: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Checkbox.vue')['default']
     UIcon: typeof import('./node_modules/@nuxt/ui/dist/runtime/vue/components/Icon.vue')['default']
-    UInput: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Input.vue')['default']
   }
 }

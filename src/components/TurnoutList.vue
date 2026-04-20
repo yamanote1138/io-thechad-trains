@@ -2,11 +2,11 @@
   <div>
     <!-- Turnouts Section -->
     <div v-if="sortedTurnouts.length > 0">
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2 md:gap-3">
         <UButton
           v-for="turnout in sortedTurnouts"
           :key="turnout.name"
-          size="sm"
+          size="md"
           :color="getTurnoutButtonColor(turnout)"
           :loading="changingTurnouts.has(turnout.name)"
           :disabled="!isConnected"

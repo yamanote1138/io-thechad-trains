@@ -2,11 +2,11 @@
   <div>
     <!-- Lights Section -->
     <div v-if="sortedLights.length > 0">
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap gap-2 md:gap-3">
         <UButton
           v-for="light in sortedLights"
           :key="light.name"
-          size="sm"
+          size="md"
           :color="getLightButtonColor(light)"
           :loading="changingLights.has(light.name)"
           :disabled="!isConnected"

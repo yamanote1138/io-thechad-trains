@@ -5,6 +5,7 @@
 
 import { ref, computed } from 'vue'
 import { logger } from '@/utils/logger'
+import { getConfig } from '@/utils/config'
 import type { JmriState, Throttle, RosterEntry, Direction, ThrottleFunction, LightData } from '@/types/jmri'
 
 import { PowerState, LightState } from 'jmri-client'
@@ -429,26 +430,18 @@ export function useJmri() {
 
         const address = parseInt(entryData.address)
 
-        if (!currentSettings) {
-          logger.error('No connection settings available')
-          continue
-        }
+        const cfg = getConfig()
+        const httpProtocol = cfg.jmriSecure ? 'https' : 'http'
 
-        // Convert WebSocket protocol to HTTP for image URLs
-        const httpProtocol = currentSettings.protocol === 'wss' ? 'https' : 'http'
-
-        // Thumbnail URL handling
         let thumbnailUrl: string | undefined
 
-        if (currentSettings.mockEnabled) {
-          // In mock mode, use local images from /locomotives/ directory
+        if (cfg.mock) {
           thumbnailUrl = `/locomotives/${entryData.name}.png`
         } else {
-          // Real server provides icon path
           thumbnailUrl = entryData.icon
-            ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}${entryData.icon}`
+            ? `${httpProtocol}://${cfg.jmriHost}:${cfg.jmriPort}${entryData.icon}`
             : entryData.name
-            ? `${httpProtocol}://${currentSettings.host}:${currentSettings.port}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
+            ? `${httpProtocol}://${cfg.jmriHost}:${cfg.jmriPort}/roster/${encodeURI(entryData.name)}/icon?maxHeight=200`
             : undefined
         }
 
@@ -855,7 +848,7 @@ export function useJmri() {
 
     // Computed
     isConnected: computed(() => connectionState.value === ConnectionState.CONNECTED),
-    isMockMode: computed(() => currentSettings?.mockEnabled ?? false),
+    isMockMode: computed(() => getConfig().mock),
     locoRoster: computed(() =>
       Array.from(jmriState.value.roster.values())
         .filter(e => !(TRAM_ADDRESSES as readonly number[]).includes(e.address))

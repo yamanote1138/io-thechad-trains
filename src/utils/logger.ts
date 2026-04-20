@@ -1,16 +1,8 @@
-/**
- * Check if debug logging is enabled
- */
-function isDebugEnabled(): boolean {
-  return localStorage.getItem('jmri-debug-enabled') === 'true'
-}
+import { getConfig } from '@/utils/config'
 
-/**
- * Simple logger with debug mode control
- */
 export const logger = {
   debug: (...args: any[]) => {
-    if (isDebugEnabled()) {
+    if (getConfig().debug) {
       console.log('[DEBUG]', ...args)
     }
   },

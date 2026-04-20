@@ -1,10 +1,22 @@
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import ui from '@nuxt/ui/vite'
 
+function devConfigStub(): Plugin {
+  return {
+    name: 'dev-config-stub',
+    configureServer(server) {
+      server.middlewares.use('/config.js', (_req, res) => {
+        res.setHeader('Content-Type', 'application/javascript')
+        res.end('')
+      })
+    }
+  }
+}
+
 export default defineConfig({
-  plugins: [vue(), ui()],
+  plugins: [vue(), ui(), devConfigStub()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -13,7 +25,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true  // Allow network access for testing on other devices
+    host: true,
+    allowedHosts: true,
   },
   build: {
     outDir: 'dist',
