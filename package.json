@@ -1,6 +1,6 @@
 {
   "name": "io-thechad-trains",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "type": "module",
   "private": true,
   "engines": {
@@ -19,7 +19,7 @@
     "jmri-client": "^4.1.1",
     "tailwindcss": "^4.2.1",
     "vue": "^3.5.13",
-    "vue-router": "^4.6.4"
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
     "@iconify-json/mdi": "^1.2.3",
@@ -28,6 +28,6 @@
     "playwright": "^1.58.2",
     "typescript": "^5.7.2",
     "vite": "^6.4.2",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^3.2.7"
   }
 }
