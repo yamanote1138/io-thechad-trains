@@ -28,6 +28,6 @@
     "playwright": "^1.58.2",
     "typescript": "^5.7.2",
     "vite": "^6.4.2",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^3.2.7"
   }
 }
