@@ -5,13 +5,7 @@ export interface JmriPluginConfig {
   port: number
   secure?: boolean
   mock?: boolean
-}
-
-export interface DccExPluginConfig {
-  enabled?: boolean
-  host: string
-  port: number
-  pwmFreq?: number
+  tramPrefix?: string // System connection prefix for tram (DC) throttles, e.g. 'D' for DCC++
 }
 
 export interface HomeAssistantPluginConfig {
@@ -31,7 +25,6 @@ export interface LayoutConfig {
   debug?: boolean
   plugins: {
     jmri: JmriPluginConfig
-    dccex?: DccExPluginConfig
     homeassistant?: HomeAssistantPluginConfig
   }
   tabs: TabConfig[]

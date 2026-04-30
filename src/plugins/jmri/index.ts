@@ -23,6 +23,7 @@ export interface JmriConnectionSettings {
   protocol: 'ws' | 'wss'
   mockEnabled: boolean
   mockDelay?: number
+  tramPrefix?: string // System connection prefix for tram throttles, e.g. 'D' for DCC++
 }
 
 // Tram DCC addresses — these are filtered out of the main locomotive roster
@@ -58,7 +59,7 @@ export function useJmri() {
       disconnect()
     }
 
-    currentSettings = settings
+    currentSettings = { ...settings }
     const wsUrl = `${settings.protocol}://${settings.host}:${settings.port}/json`
     logger.debug('Initializing JMRI client with URL:', wsUrl)
     logger.debug('Mock mode enabled:', settings.mockEnabled)
@@ -582,15 +583,28 @@ export function useJmri() {
       return
     }
 
-    const rosterEntry = jmriState.value.roster.get(address)
-    if (!rosterEntry) {
-      logger.error(`No roster entry found for address ${address}`)
-      return
+    // Create a synthetic roster entry for addresses not in the JMRI roster
+    // (common for tram addresses on a DCC++ sub-connection)
+    if (!jmriState.value.roster.has(address)) {
+      logger.info(`No roster entry for address ${address} — creating synthetic entry`)
+      jmriState.value.roster.set(address, {
+        address,
+        name: `Address ${address}`,
+        road: '',
+        number: '',
+        functionKeys: {}
+      })
     }
 
+    const rosterEntry = jmriState.value.roster.get(address)!
+
+    // Use tramPrefix for known tram addresses
+    const isTram = (TRAM_ADDRESSES as readonly number[]).includes(address)
+    const prefix = isTram ? currentSettings?.tramPrefix : undefined
+
     try {
-      logger.info(`Acquiring throttle for ${rosterEntry.name} (address ${address})`)
-      const throttleId = await jmriClient.acquireThrottle({ address })
+      logger.info(`Acquiring throttle for ${rosterEntry.name} (address ${address}${prefix ? `, prefix ${prefix}` : ''})`)
+      const throttleId = await jmriClient.acquireThrottle({ address, ...(prefix && { prefix }) })
       throttleIds.set(address, throttleId)
       logger.debug(`Acquired throttle ID: ${throttleId}`)
 
