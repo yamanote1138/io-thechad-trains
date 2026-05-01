@@ -191,7 +191,7 @@ GitHub Actions builds and pushes the Docker image on tag push.
 ### Env Vars (Docker)
 | Variable | Purpose | Default |
 |---|---|---|
-| `PORT` | Host port for the web app | 8080 |
+| `PORT` | Host port for the web app | 9273 |
 
 No `YB_*` variables — all app config lives in `yardbird.yaml`.
 

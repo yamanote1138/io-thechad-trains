@@ -4,7 +4,7 @@ services:
     container_name: yardbird
     restart: always
     ports:
-      - ${PORT:-8080}:80
+      - ${PORT:-9273}:80
     volumes:
       - ./config:/config
     healthcheck:

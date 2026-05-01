@@ -199,7 +199,7 @@ services:
   yardbird:
     image: yamanote1138/yardbird:latest
     ports:
-      - "8080:80"
+      - "9273:80"
     volumes:
       - ./config:/config
 ```
