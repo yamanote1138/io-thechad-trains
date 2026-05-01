@@ -16,7 +16,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 22+** required
 
 ### Current Version
-v6.1.2 — Modular plugin architecture + YAML config + JMRI-native tram control
+v6.2.0 — Per-connection power zones + JMRI-native tram control + jmri-client 4.2
 
 ## User Context & Preferences
 
@@ -34,13 +34,12 @@ v6.1.2 — Modular plugin architecture + YAML config + JMRI-native tram control
 ```
 src/
 ├── core/
-│   ├── types.ts          — Layout config type definitions (LayoutConfig, plugin configs, TabConfig)
+│   ├── types.ts          — LayoutConfig, plugin configs, PowerZone/PowerZonesConfig types
 │   └── useLayout.ts      — Fetches and parses yardbird.yaml; exposes tabs, plugins, debug flag
 │
 ├── plugins/
 │   ├── jmri/
 │   │   ├── index.ts                — useJmri composable (singleton)
-│   │   ├── ExtendedJmriClient.ts   — JMRI client subclass (named power sources)
 │   │   └── components/
 │   │       ├── ThrottleList.vue, ThrottleCard.vue
 │   │       ├── TurnoutList.vue, LightList.vue
@@ -53,7 +52,7 @@ src/
 │
 ├── components/           — Shared UI (not plugin-specific)
 │   ├── ConnectionSetup.vue   — Splash screen with "All Aboard!" button
-│   └── PowerControl.vue
+│   └── PowerControl.vue      — Per-zone or single power button(s) + Stop All + Exit
 │
 ├── utils/
 │   └── logger.ts         — setDebugMode(bool) controls debug output; called from App.vue
@@ -94,10 +93,14 @@ public/
    - Release: speed set to 0 then throttle released; all trams auto-released when JMRI power goes off
    - PWM frequency label shown in parentheses in the sublabel (e.g. "Inner Loop (Supersonic)")
 
-5. **Power State**
+5. **Power Zones**
+   - `powerZones` in YAML defines per-connection power buttons; three modes: explicit array, `discover: true`, or omit for single button
+   - Per-zone state tracked in `powerByPrefix: Map<string, PowerState>` (key = prefix string, `""` = default connection)
+   - JMRI does not reliably return named-connection power state via WebSocket prefix queries — zone state is managed **optimistically** after `setPower()` succeeds; no re-query
+   - `power:changed` events carry no prefix info and do not update per-zone state (would clobber optimistic state)
+   - Initial zone states are queried on connect; UNKNOWN is acceptable until first toggle
    - Uses official `PowerState` enum from jmri-client (0=UNKNOWN, 2=ON, 4=OFF)
-   - Three-state UI: ON (green), OFF (red), UNKNOWN (yellow)
-   - Single power control governs all connected hardware (locos and trams)
+   - Three-state UI per zone: ON (primary/blue), OFF (neutral/grey), UNKNOWN (warning/yellow)
 
 7. **Green Colour Override**
    - `main.css` overrides `--ui-color-success-*` variables with YardBird greens (`#a1c54b` / `#98c130`)
@@ -124,8 +127,9 @@ volumes:
 The entrypoint symlinks `/config/yardbird.yaml` → the web root if present.
 
 **Tram config notes (under `jmri:`):**
-- `tramPrefix` — system connection prefix for the DCC++ hardware connection (e.g. `D`); omit for single-connection layouts. Use `getSystemConnections()` on the JMRI client to discover available prefixes.
+- `tramPrefix` — system connection prefix for the DCC-EX hardware connection (e.g. `D`); omit for single-connection layouts
 - `tramPwmFreq` — default DC PWM frequency index applied on tram acquire: 0=131Hz, 1=490Hz, 2=3.4kHz, 3=Supersonic (default 3)
+- `powerZones` — array of `{name, prefix}` objects, or `{discover: true}`, or omit for single button. See `yardbird.example.yaml` for all modes.
 
 ## Development Conventions
 
@@ -206,16 +210,21 @@ Set `mock: true` in the `jmri` plugin config in `yardbird.yaml`.
 
 ## JMRI Integration Notes
 
-- **Connection lifecycle**: autoConnect off → manual connect → fetch power/turnouts/lights → fetch roster
-- **Throttles**: created on-demand by DCC address; stored in Map; release is a future enhancement
+- **Connection lifecycle**: autoConnect off → manual connect → resolve power zones → fetch power/turnouts/lights → fetch roster
+- **Throttles**: created on-demand by DCC address; stored in Map
 - **Lights**: LCC-based, independent of DCC power; fetched on connect via `listLights()`
-- **Power quirks**: JMRI state can be inconsistent immediately after set — always verify after change
+- **Power zones**: `getSystemConnections()` is only called when `discover: true` — avoid calling it unconditionally as it can time out on some JMRI versions
+- **DCC-EX reconnect**: if JMRI loses its connection to DCC-EX (e.g. command station power-cycled), JMRI does NOT auto-reconnect — restart JMRI to restore. Trams power zone shows UNKNOWN in this state.
 
 ## Troubleshooting
 
 **Trams won't acquire / wrong hardware**
-- If JMRI has multiple system connections, set `tramPrefix` in `yardbird.yaml` under `jmri:` to the DCC++ prefix
-- To discover prefixes: open browser console, set `debug: true`, connect — `getSystemConnections()` is logged on connect; or call it from the browser console via the JMRI client
+- Set `tramPrefix` in `yardbird.yaml` to match the DCC-EX prefix in JMRI Preferences → Connections
+- Enable `debug: true` and check the browser console for acquisition errors
+
+**Power zone shows UNKNOWN after connect**
+- JMRI doesn't reliably return named-connection power state via WebSocket — this is expected
+- Toggle the button once to set a known state
 
 **Cannot connect to JMRI**
 - Verify JMRI WebSocket server enabled: *Preferences → Web Server → JSON WebSocket*
@@ -226,4 +235,4 @@ Set `mock: true` in the `jmri` plugin config in `yardbird.yaml`.
 
 ---
 
-*Last updated: April 2026 (feat/jmri-native-trams)*
+*Last updated: April 2026*

@@ -11,11 +11,11 @@
         <div class="mb-2 sm:mb-3 flex items-start justify-between gap-2">
           <div class="min-w-0">
             <LocomotiveHeader
-              v-if="jmriState.value.roster.has(config.address)"
-              :name="jmriState.value.roster.get(config.address)!.name"
-              :road="jmriState.value.roster.get(config.address)!.road"
-              :number="jmriState.value.roster.get(config.address)!.number"
-              :thumbnail-url="jmriState.value.roster.get(config.address)!.thumbnailUrl"
+              v-if="jmriState.roster.has(config.address)"
+              :name="jmriState.roster.get(config.address)!.name"
+              :road="jmriState.roster.get(config.address)!.road"
+              :number="jmriState.roster.get(config.address)!.number"
+              :thumbnail-url="jmriState.roster.get(config.address)!.thumbnailUrl"
               :disabled="true"
             />
             <div v-else>

@@ -132,6 +132,7 @@ const handleConnect = async () => {
       mockEnabled: jmri.mock ?? false,
       mockDelay: 50,
       tramPrefix: jmri.tramPrefix,
+      powerZonesConfig: jmri.powerZones,
     }
 
     let connectionTimeout: NodeJS.Timeout | null = null
