@@ -16,7 +16,7 @@ This file contains project conventions, architecture decisions, and development 
 - **Node.js 22+** required
 
 ### Current Version
-v7.0.0 — Per-connection power zones + JMRI-native tram control + jmri-client 4.2
+v7.1.0 — Vite 8, TypeScript 6, @vitejs/plugin-vue 6
 
 ## User Context & Preferences
 

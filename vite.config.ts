@@ -20,8 +20,8 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue': ['vue']
+        manualChunks(id) {
+          if (id.includes('/node_modules/vue/')) return 'vue'
         }
       }
     }
