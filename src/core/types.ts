@@ -28,11 +28,50 @@ export interface HomeAssistantPluginConfig {
   area: string
 }
 
+// ── Widget / Dashboard types ──────────────────────────────────────────────────
+
+export type WidgetType =
+  | 'jmri-power'
+  | 'jmri-throttle'
+  | 'jmri-turnout'
+  | 'jmri-light'
+  | 'jmri-tram'
+  | 'ha-entity'
+
+export interface WidgetGridPos {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface WidgetInstance {
+  id: string                         // crypto.randomUUID()
+  type: WidgetType
+  grid: WidgetGridPos
+  config: Record<string, unknown>    // widget-specific: address, entityId, prefix, label, etc.
+}
+
 export interface TabConfig {
   id: string
   name: string
   icon: string
+  widgets: WidgetInstance[]
 }
+
+// ── Stored / active config ────────────────────────────────────────────────────
+
+export interface StoredConfig {
+  version: 1
+  debug?: boolean
+  connections: {
+    jmri?: JmriPluginConfig
+    homeassistant?: HomeAssistantPluginConfig
+  }
+  tabs: TabConfig[]
+}
+
+// ── Legacy YAML config (used only by useLayout.ts as fallback source) ─────────
 
 export interface LayoutConfig {
   debug?: boolean
@@ -40,6 +79,6 @@ export interface LayoutConfig {
     jmri: JmriPluginConfig
     homeassistant?: HomeAssistantPluginConfig
   }
-  tabs: TabConfig[]
+  tabs: Array<{ id: string; name: string; icon: string }>
 }
 

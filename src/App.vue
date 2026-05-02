@@ -63,7 +63,7 @@
 import { ref, computed, watch, type Component } from 'vue'
 import { useJmri, type JmriConnectionSettings, ConnectionState } from '@/plugins/jmri'
 import { useHomeAssistant } from '@/plugins/homeassistant'
-import { useLayout } from '@/core/useLayout'
+import { useConfig } from '@/core/useConfig'
 import { setDebugMode } from '@/utils/logger'
 import { logger } from '@/utils/logger'
 import { version as appVersion } from '../package.json'
@@ -83,7 +83,7 @@ const tabComponents: Record<string, Component> = {
   room:      SceneWidget,
 }
 
-const layout = useLayout()
+const cfg = useConfig()
 const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName, jmriVersion } = useJmri()
 const ha = useHomeAssistant()
 
@@ -91,8 +91,8 @@ const isInitialized = ref(false)
 const activeTab = ref('')
 const setupRef = ref<InstanceType<typeof ConnectionSetup>>()
 
-const configLoading = computed(() => layout.loading.value)
-const tabs = computed(() => layout.tabs.value)
+const configLoading = computed(() => cfg.loading.value)
+const tabs = computed(() => cfg.tabs.value)
 
 // Set first tab as active once config loads
 watch(tabs, (newTabs) => {
@@ -102,10 +102,10 @@ watch(tabs, (newTabs) => {
 }, { immediate: true })
 
 // Apply debug mode from config
-watch(layout.debug, (enabled) => setDebugMode(enabled), { immediate: true })
+watch(cfg.debug, (enabled) => setDebugMode(enabled), { immediate: true })
 
 const connectionSubtitle = computed(() => {
-  const jmri = layout.plugins.value.jmri
+  const jmri = cfg.jmri.value
   const parts = [
     jmri?.mock ? 'mock data' : jmri ? `${jmri.host}:${jmri.port}` : '',
     jmriVersion.value ? `JMRI ${jmriVersion.value}` : '',
@@ -119,11 +119,14 @@ watch(railroadName, (newName) => {
 }, { immediate: true })
 
 const handleConnect = async () => {
-  const plugins = layout.plugins.value
-  const jmri = plugins.jmri
+  const jmri = cfg.jmri.value
+  if (!jmri) {
+    setupRef.value?.setError('No JMRI connection configured.')
+    return
+  }
 
   try {
-    logger.info('Connecting with config:', plugins)
+    logger.info('Connecting with config:', cfg.connections.value)
 
     const jmriSettings: JmriConnectionSettings = {
       host: jmri.host,
@@ -174,7 +177,7 @@ const handleConnect = async () => {
           logger.error('Failed to fetch roster:', error)
         }
 
-        const haCfg = plugins.homeassistant
+        const haCfg = cfg.homeassistant.value
         if (haCfg?.enabled && haCfg.url && haCfg.token && haCfg.area) {
           const haWsUrl = haCfg.url.replace(/^http/, 'ws').replace(/\/?$/, '/api/websocket')
           logger.info('Connecting to Home Assistant at', haWsUrl)
