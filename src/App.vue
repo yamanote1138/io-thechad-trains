@@ -44,29 +44,29 @@
 
       <!-- Tab Navigation -->
       <div class="border-b border-white/10">
-        <div class="flex items-center">
-          <ul class="flex flex-wrap -mb-px text-sm md:text-base font-medium text-center flex-1">
-            <li v-for="tab in tabs" :key="tab.id" class="me-2">
-              <button
-                class="inline-flex items-center justify-center p-4 md:px-5 md:py-4 border-b-2 rounded-t transition-colors group"
-                :class="activeTab === tab.id
-                  ? 'text-blue-400 border-blue-400'
-                  : 'border-transparent text-white/50 hover:text-white/80 hover:border-white/30'"
-                @click="activeTab = tab.id"
-              >
-                <UIcon :name="tab.icon" class="w-4 h-4 md:w-5 md:h-5 me-2" />
-                {{ tab.name }}
-              </button>
-            </li>
-          </ul>
+        <!-- Edit mode: full tab manager (add/rename/reorder/delete) -->
+        <TabManager
+          v-if="editMode"
+          :active-tab="activeTab"
+          @select="activeTab = $event"
+          @tabs-changed="onTabsChanged"
+        />
 
-          <!-- Edit mode indicator + add tab (Phase 7 adds full TabManager) -->
-          <div v-if="editMode" class="flex items-center gap-2 px-3 pb-px flex-shrink-0">
-            <span class="text-xs text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">
-              Editing
-            </span>
-          </div>
-        </div>
+        <!-- Run mode: simple tab bar -->
+        <ul v-else class="flex flex-wrap -mb-px text-sm md:text-base font-medium text-center">
+          <li v-for="tab in tabs" :key="tab.id" class="me-2">
+            <button
+              class="inline-flex items-center justify-center p-4 md:px-5 md:py-4 border-b-2 rounded-t transition-colors"
+              :class="activeTab === tab.id
+                ? 'text-blue-400 border-blue-400'
+                : 'border-transparent text-white/50 hover:text-white/80 hover:border-white/30'"
+              @click="activeTab = tab.id"
+            >
+              <UIcon :name="tab.icon" class="w-4 h-4 md:w-5 md:h-5 me-2" />
+              {{ tab.name }}
+            </button>
+          </li>
+        </ul>
       </div>
     </div>
 
@@ -114,6 +114,7 @@ import PowerControl from '@/components/PowerControl.vue'
 import TabCanvas from '@/components/TabCanvas.vue'
 import WidgetPalette from '@/widgets/WidgetPalette.vue'
 import WidgetConfigModal from '@/widgets/WidgetConfigModal.vue'
+import TabManager from '@/components/TabManager.vue'
 import ThrottleList from '@/plugins/jmri/components/ThrottleList.vue'
 import TurnoutList from '@/plugins/jmri/components/TurnoutList.vue'
 import LightList from '@/plugins/jmri/components/LightList.vue'
@@ -155,6 +156,14 @@ function openWidgetConfig(widgetId: string) {
       widgets: t.widgets.map(w => w.id === widgetId ? { ...w, config: newConfig } : w),
     })))
   })
+}
+
+function onTabsChanged() {
+  // Ensure the active tab still exists after add/delete/reorder
+  const current = cfg.tabs.value
+  if (!current.find(t => t.id === activeTab.value) && current.length) {
+    activeTab.value = current[0].id
+  }
 }
 
 function openNewWidgetConfig(widget: WidgetInstance) {
