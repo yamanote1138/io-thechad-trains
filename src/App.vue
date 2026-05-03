@@ -18,21 +18,33 @@
   <div v-else class="min-h-screen bg-neutral-950 text-white">
     <!-- Sticky Header Section -->
     <div class="sticky top-0 z-[1000] bg-neutral-950 header-shadow">
-      <div class="px-4 md:px-6 py-2 sm:py-3 pb-2">
-        <!-- Header -->
-        <h1 class="text-lg md:text-xl font-semibold mb-1">{{ railroadName }}</h1>
-        <p class="text-neutral-400 text-sm md:text-base mb-2 sm:mb-3">{{ connectionSubtitle }}</p>
+      <div class="px-4 md:px-6 py-2 sm:py-3 pb-2 flex items-center gap-3 md:gap-4">
+        <!-- YardBird icon -->
+        <img src="/favicon.svg" class="w-14 h-14 md:w-16 md:h-16 flex-shrink-0 opacity-80" alt="YardBird" />
 
-        <!-- Power Control with integrated status -->
-        <PowerControl @logout="handleExit" />
+        <!-- Railroad name + controls -->
+        <div class="flex-1 min-w-0">
+          <h1 class="text-lg md:text-xl font-semibold mb-1">{{ railroadName }}</h1>
+          <!-- Power Control with integrated status -->
+          <HeaderButtons @logout="handleExit" />
+        </div>
       </div>
 
       <!-- Tab Navigation -->
       <div class="border-b border-white/10">
-        <ul class="flex flex-wrap -mb-px text-sm md:text-base font-medium text-center">
+        <!-- Edit mode: full tab manager (add/rename/reorder/delete) -->
+        <TabManager
+          v-if="editMode"
+          :active-tab="activeTab"
+          @select="activeTab = $event"
+          @tabs-changed="onTabsChanged"
+        />
+
+        <!-- Run mode: simple tab bar -->
+        <ul v-else class="flex flex-wrap -mb-px text-sm md:text-base font-medium text-center">
           <li v-for="tab in tabs" :key="tab.id" class="me-2">
             <button
-              class="inline-flex items-center justify-center p-4 md:px-5 md:py-4 border-b-2 rounded-t transition-colors group"
+              class="inline-flex items-center justify-center p-4 md:px-5 md:py-4 border-b-2 rounded-t transition-colors"
               :class="activeTab === tab.id
                 ? 'text-blue-400 border-blue-400'
                 : 'border-transparent text-white/50 hover:text-white/80 hover:border-white/30'"
@@ -46,53 +58,117 @@
       </div>
     </div>
 
-    <!-- Scrollable Content -->
-    <div class="px-4 md:px-6 pt-2 sm:pt-3 md:pt-4">
-      <template v-for="tab in tabs" :key="tab.id">
-        <component
-          :is="tabComponents[tab.id]"
-          v-if="tabComponents[tab.id]"
-          v-show="activeTab === tab.id"
-        />
-      </template>
+    <!-- Widget config modal (global, rendered once) -->
+    <WidgetConfigModal />
+
+    <!-- Content area: palette sidebar + tab canvas -->
+    <div class="flex min-h-0 overflow-hidden">
+      <WidgetPalette />
+
+      <div class="flex-1 overflow-auto px-4 md:px-6 pt-2 sm:pt-3 md:pt-4 min-w-0">
+        <!-- No tabs yet: first-run welcome -->
+        <div v-if="tabs.length === 0 && !editMode" class="flex flex-col items-center justify-center py-24 text-center px-4">
+          <img src="/favicon.svg" class="w-16 h-16 mb-6 opacity-40" alt="YardBird" />
+          <h2 class="text-white text-xl font-semibold mb-2">Welcome to YardBird</h2>
+          <p class="text-neutral-500 text-sm mb-8 max-w-sm">
+            Your dashboard is empty. Switch to edit mode to create tabs and drag widgets onto the canvas.
+          </p>
+          <UButton color="primary" size="lg" @click="toggleEditMode">
+            <template #leading><UIcon name="i-mdi-pencil" /></template>
+            Let's go
+          </UButton>
+        </div>
+
+        <template v-for="tab in tabs" :key="tab.id">
+          <div v-show="activeTab === tab.id">
+            <TabCanvas
+              v-if="tab.widgets.length > 0 || editMode"
+              :ref="(el) => { if (el) canvasRefs[tab.id] = el as InstanceType<typeof TabCanvas> }"
+              :tab="tab"
+              @configure="openWidgetConfig"
+              @configure-new="openNewWidgetConfig"
+            />
+            <!-- Empty tab in run mode: prompt to start editing -->
+            <div v-else class="flex flex-col items-center justify-center py-20 text-center">
+              <UIcon name="i-mdi-view-grid-plus-outline" class="w-14 h-14 text-neutral-700 mb-4" />
+              <h3 class="text-neutral-400 text-base font-medium mb-2">This tab has no widgets</h3>
+              <p class="text-neutral-600 text-sm mb-6 max-w-xs">
+                Switch to edit mode and drag widgets from the palette to build your dashboard.
+              </p>
+              <UButton color="primary" @click="toggleEditMode">
+                <template #leading><UIcon name="i-mdi-pencil" /></template>
+                Let's go
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, type Component } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useJmri, type JmriConnectionSettings, ConnectionState } from '@/plugins/jmri'
 import { useHomeAssistant } from '@/plugins/homeassistant'
-import { useLayout } from '@/core/useLayout'
+import { useConfig } from '@/core/useConfig'
+import { useEditMode } from '@/composables/useEditMode'
 import { setDebugMode } from '@/utils/logger'
 import { logger } from '@/utils/logger'
-import { version as appVersion } from '../package.json'
 import ConnectionSetup from '@/components/ConnectionSetup.vue'
-import PowerControl from '@/components/PowerControl.vue'
-import ThrottleList from '@/plugins/jmri/components/ThrottleList.vue'
-import TurnoutList from '@/plugins/jmri/components/TurnoutList.vue'
-import LightList from '@/plugins/jmri/components/LightList.vue'
-import TramWidget from '@/plugins/jmri/components/TramWidget.vue'
-import SceneWidget from '@/plugins/homeassistant/components/SceneWidget.vue'
+import HeaderButtons from '@/components/HeaderButtons.vue'
+import TabCanvas from '@/components/TabCanvas.vue'
+import WidgetPalette from '@/widgets/WidgetPalette.vue'
+import WidgetConfigModal from '@/widgets/WidgetConfigModal.vue'
+import TabManager from '@/components/TabManager.vue'
 
-const tabComponents: Record<string, Component> = {
-  throttles: ThrottleList,
-  turnouts:  TurnoutList,
-  lights:    LightList,
-  trams:     TramWidget,
-  room:      SceneWidget,
-}
+import type { WidgetInstance } from '@/core/types'
+import { useWidgetConfig } from '@/composables/useWidgetConfig'
 
-const layout = useLayout()
-const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName, jmriVersion } = useJmri()
+const cfg = useConfig()
+const { editMode, toggle: toggleEditMode, exit: exitEditMode } = useEditMode()
+const wc = useWidgetConfig()
+const { initialize, disconnect, fetchRoster, isConnected, connectionState, railroadName, applyCommandStationsConfig } = useJmri()
 const ha = useHomeAssistant()
 
 const isInitialized = ref(false)
 const activeTab = ref('')
 const setupRef = ref<InstanceType<typeof ConnectionSetup>>()
 
-const configLoading = computed(() => layout.loading.value)
-const tabs = computed(() => layout.tabs.value)
+// Map of tab id → canvas ref (populated by template)
+const canvasRefs = ref<Record<string, InstanceType<typeof TabCanvas>>>({})
+
+function openWidgetConfig(widgetId: string) {
+  const tab = cfg.tabs.value.find(t => t.widgets.some(w => w.id === widgetId))
+  if (!tab) return
+  const widget = tab.widgets.find(w => w.id === widgetId)!
+  wc.openForEdit(widgetId, widget.type, widget.config, (newConfig) => {
+    cfg.saveTabs(cfg.tabs.value.map(t => ({
+      ...t,
+      widgets: t.widgets.map(w => w.id === widgetId ? { ...w, config: newConfig } : w),
+    })))
+  })
+}
+
+function onTabsChanged() {
+  // Ensure the active tab still exists after add/delete/reorder
+  const current = cfg.tabs.value
+  if (!current.find(t => t.id === activeTab.value) && current.length) {
+    activeTab.value = current[0].id
+  }
+}
+
+function openNewWidgetConfig(widget: WidgetInstance) {
+  const canvas = canvasRefs.value[activeTab.value]
+  wc.openForNew(
+    widget,
+    (configured) => canvas?.commitWidget(configured),
+    () => {},
+  )
+}
+
+const configLoading = computed(() => cfg.loading.value)
+const tabs = computed(() => cfg.tabs.value)
 
 // Set first tab as active once config loads
 watch(tabs, (newTabs) => {
@@ -102,28 +178,32 @@ watch(tabs, (newTabs) => {
 }, { immediate: true })
 
 // Apply debug mode from config
-watch(layout.debug, (enabled) => setDebugMode(enabled), { immediate: true })
-
-const connectionSubtitle = computed(() => {
-  const jmri = layout.plugins.value.jmri
-  const parts = [
-    jmri?.mock ? 'mock data' : jmri ? `${jmri.host}:${jmri.port}` : '',
-    jmriVersion.value ? `JMRI ${jmriVersion.value}` : '',
-    `YardBird v${appVersion}`
-  ]
-  return parts.filter(Boolean).join(' | ')
-})
+watch(cfg.debug, (enabled) => setDebugMode(enabled), { immediate: true })
 
 watch(railroadName, (newName) => {
   document.title = newName
 }, { immediate: true })
 
+// Re-apply command stations when config changes while connected (e.g. after import)
+watch(
+  () => cfg.jmri.value?.commandStations,
+  async (newConfig) => {
+    if (isConnected.value) {
+      await applyCommandStationsConfig(newConfig)
+    }
+  },
+  { deep: true }
+)
+
 const handleConnect = async () => {
-  const plugins = layout.plugins.value
-  const jmri = plugins.jmri
+  const jmri = cfg.jmri.value
+  if (!jmri) {
+    setupRef.value?.setError('No JMRI connection configured.')
+    return
+  }
 
   try {
-    logger.info('Connecting with config:', plugins)
+    logger.info('Connecting with config:', cfg.connections.value)
 
     const jmriSettings: JmriConnectionSettings = {
       host: jmri.host,
@@ -132,7 +212,7 @@ const handleConnect = async () => {
       mockEnabled: jmri.mock ?? false,
       mockDelay: 50,
       tramPrefix: jmri.tramPrefix,
-      powerZonesConfig: jmri.powerZones,
+      commandStationsConfig: jmri.commandStations,
     }
 
     let connectionTimeout: NodeJS.Timeout | null = null
@@ -174,7 +254,7 @@ const handleConnect = async () => {
           logger.error('Failed to fetch roster:', error)
         }
 
-        const haCfg = plugins.homeassistant
+        const haCfg = cfg.homeassistant.value
         if (haCfg?.enabled && haCfg.url && haCfg.token && haCfg.area) {
           const haWsUrl = haCfg.url.replace(/^http/, 'ws').replace(/\/?$/, '/api/websocket')
           logger.info('Connecting to Home Assistant at', haWsUrl)
@@ -206,6 +286,7 @@ const handleConnect = async () => {
 
 const handleExit = () => {
   logger.info('Exiting to welcome screen')
+  exitEditMode()
   ha.disconnect()
   disconnect()
   isInitialized.value = false

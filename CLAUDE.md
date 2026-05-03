@@ -4,7 +4,7 @@ This file contains project conventions, architecture decisions, and development 
 
 ## Project Overview
 
-**YardBird** is a pure frontend SPA for model railroad control. The browser connects directly to JMRI via WebSocket — no backend server required. Tabs and plugin connections are driven by a YAML config file.
+**YardBird** is a pure frontend SPA for model railroad control. The browser connects directly to JMRI via WebSocket — no backend server required. Connections are configured via `yardbird.yaml` (factory default) and a runtime dashboard editor; layout config persists in `localStorage`.
 
 ### Tech Stack
 - **Vue 3** with Composition API and TypeScript
@@ -13,10 +13,12 @@ This file contains project conventions, architecture decisions, and development 
 - **Iconify** (Material Design Icons + Heroicons) for icons
 - **jmri-client 4.2+** for WebSocket-based JMRI communication (includes connection prefix support)
 - **js-yaml** for parsing `yardbird.yaml` at startup
+- **gridstack** for drag-and-drop / resize dashboard grid (widget canvas)
+- **vue-draggable-plus** (SortableJS) for tab reordering in edit mode
 - **Node.js 22+** required
 
 ### Current Version
-v7.1.0 — Vite 8, TypeScript 6, @vitejs/plugin-vue 6
+v8.0.0 — Visual configurator release. Vite 8, TypeScript 6, @vitejs/plugin-vue 6
 
 ## User Context & Preferences
 
@@ -34,15 +36,33 @@ v7.1.0 — Vite 8, TypeScript 6, @vitejs/plugin-vue 6
 ```
 src/
 ├── core/
-│   ├── types.ts          — LayoutConfig, plugin configs, PowerZone/PowerZonesConfig types
-│   └── useLayout.ts      — Fetches and parses yardbird.yaml; exposes tabs, plugins, debug flag
+│   ├── types.ts          — LayoutConfig, StoredConfig, WidgetInstance, plugin configs, PowerZone types
+│   ├── useLayout.ts      — Fetches and parses yardbird.yaml; used as YAML fallback by useConfig
+│   └── useConfig.ts      — Active config: reads localStorage, falls back to useLayout; exposes save()
+│
+├── composables/          — App-level singletons (not plugin-specific)
+│   ├── useEditMode.ts    — Edit mode toggle (module-scope ref)
+│   └── useWidgetConfig.ts — Widget config modal state (open/confirm/cancel)
+│
+├── widgets/              — Dashboard widget system
+│   ├── registry.ts       — WidgetDefinition registry (type → component, size, plugin, config flag)
+│   ├── WidgetFrame.vue   — Edit-mode wrapper (drag handle, ⚙ config, ✕ delete)
+│   ├── WidgetPalette.vue — Slide-in sidebar listing draggable widget types (edit mode only)
+│   ├── WidgetConfigModal.vue — Modal shell + per-type config sub-forms
+│   └── config/
+│       ├── ThrottleConfig.vue
+│       ├── TurnoutConfig.vue
+│       ├── LightConfig.vue
+│       ├── HaEntityConfig.vue
+│       └── PowerConfig.vue
 │
 ├── plugins/
 │   ├── jmri/
 │   │   ├── index.ts                — useJmri composable (singleton)
 │   │   └── components/
 │   │       ├── ThrottleList.vue, ThrottleCard.vue
-│   │       ├── TurnoutList.vue, LightList.vue
+│   │       ├── TurnoutList.vue, TurnoutWidget.vue  (single-item widget)
+│   │       ├── LightList.vue, LightWidget.vue      (single-item widget)
 │   │       ├── TramWidget.vue
 │   │       └── RosterCard.vue, LocomotiveHeader.vue
 │   └── homeassistant/
@@ -51,8 +71,10 @@ src/
 │           └── SceneWidget.vue
 │
 ├── components/           — Shared UI (not plugin-specific)
-│   ├── ConnectionSetup.vue   — Splash screen with "All Aboard!" button
-│   └── PowerControl.vue      — Per-zone or single power button(s) + Stop All + Exit
+│   ├── ConnectionSetup.vue   — Splash screen + connection management (add/edit JMRI, HA)
+│   ├── TabCanvas.vue         — Gridstack-based grid canvas for a single tab's widgets
+│   ├── TabManager.vue        — Edit-mode tab bar (add/rename/reorder/delete tabs)
+│   └── HeaderButtons.vue     — Header button row: power, stop all, edit mode, info, exit
 │
 ├── utils/
 │   └── logger.ts         — setDebugMode(bool) controls debug output; called from App.vue
@@ -61,7 +83,7 @@ src/
     └── homeAssistant.ts
 
 public/
-└── yardbird.yaml         — Default layout and connection configuration
+└── yardbird.yaml         — Factory-default layout and connection configuration
 ```
 
 ### Key Architectural Decisions
@@ -75,11 +97,13 @@ public/
    - Single instance shared across all components — prevents multiple WebSocket connections
    - State persists across component mount/unmount cycles
 
-3. **YAML Config Flow**
-   - `useLayout.ts` fetches `/yardbird.yaml` on module import (auto-loads at startup)
-   - Falls back to `DEFAULT_CONFIG` (JMRI only, three tabs) on any fetch/parse error
-   - `App.vue` reads `layout.tabs` for tab bar and `layout.plugins` for connection params
-   - `layout.debug` drives `setDebugMode()` in logger
+3. **Config Flow (localStorage → YAML → DEFAULT_CONFIG)**
+   - `useConfig.ts` is the active config source. Priority: `localStorage` key `yardbird:config` → YAML via `useLayout.ts` → `DEFAULT_CONFIG`
+   - On first load from YAML: migrates `tabs` into `StoredConfig` format and saves to localStorage
+   - `useConfig.save(patch)` persists partial updates to localStorage (deep-merges)
+   - `useConfig.reset()` clears localStorage; next load re-reads YAML
+   - `useLayout.ts` remains but is only used as the YAML fallback — not called directly by components
+   - `App.vue` reads from `useConfig` for tabs, connections, and debug flag
 
 4. **Tram Throttle Behaviour**
    - Tram addresses 30 (inner loop) and 31 (outer loop) are filtered from the main JMRI loco roster
@@ -112,6 +136,62 @@ public/
 
 9. **Heartbeat**
    - JMRI: 15-second heartbeat (JMRI disconnects after 30s idle)
+
+### Visual Configurator (feat/visual-configurator)
+
+The dashboard editor allows runtime layout customisation without editing YAML.
+
+#### StoredConfig Schema
+```typescript
+interface StoredConfig {
+  version: 1
+  debug?: boolean
+  connections: {
+    jmri?: JmriPluginConfig
+    homeassistant?: HomeAssistantPluginConfig
+  }
+  tabs: TabConfig[]   // TabConfig now includes widgets: WidgetInstance[]
+}
+
+type WidgetType = 'jmri-power' | 'jmri-throttle' | 'jmri-turnout'
+                | 'jmri-light' | 'jmri-tram'     | 'ha-entity'
+
+interface WidgetInstance {
+  id: string                        // crypto.randomUUID()
+  type: WidgetType
+  grid: { x: number; y: number; w: number; h: number }
+  config: Record<string, unknown>   // address, entityId, prefix, label, etc.
+}
+```
+
+#### Widget Registry (`src/widgets/registry.ts`)
+Each `WidgetType` entry defines: display name, icon, default/min grid size, Vue component, required plugin (`'jmri' | 'homeassistant'`), and whether a config modal is needed. To add a new widget type: add an entry here, create the component, and add a config sub-form if required.
+
+#### Edit Mode
+- Toggled via pencil/lock icon in the header (top-right)
+- `useEditMode()` singleton — module-scope `ref<boolean>`
+- When active: `WidgetPalette` sidebar visible, `TabCanvas` enables Gridstack drag/resize, `WidgetFrame` overlays show drag handle + config + delete, tab bar shows management controls
+- When inactive: all editing UI hidden, Gridstack disabled
+
+#### Gridstack Canvas (`src/components/TabCanvas.vue`)
+- 12-column grid, cell height ~80px
+- Mounts with vanilla Gridstack JS API on a `ref` div
+- `GridStack.setupDragIn('.ybw-palette-item', { helper: 'clone' })` connects palette to canvas
+- Layout `change` event → syncs positions back to `useConfig.save()`
+- `added` event (palette drop) → opens `WidgetConfigModal` before final save
+- `gridstack.disable()` in run mode, `gridstack.enable()` in edit mode
+
+#### Tab Management
+- `TabManager.vue` wraps the tab bar in edit mode
+- Add tab (+) → modal: name + icon picker
+- Double-click tab name to rename
+- Drag to reorder tabs (vue-draggable-plus / SortableJS)
+- × to delete (confirms if tab has widgets)
+
+#### Connection Management
+- `ConnectionSetup.vue` reads from `useConfig` — shows saved connections prefilled from localStorage/YAML
+- "Edit" per connection → form modal → saves via `useConfig.save()`
+- Supports JMRI and Home Assistant connections
 
 ## Configuration
 
@@ -152,9 +232,11 @@ The entrypoint symlinks `/config/yardbird.yaml` → the web root if present.
 
 ### Naming Conventions
 - Plugin composables: `use<Name>` in `plugins/<name>/index.ts`
+- App-level composables: `use<Name>` in `src/composables/`
 - Widget components: `<Noun>Widget.vue` (plugin-specific) or `<Noun>List.vue` / `<Noun>Card.vue`
+- Dashboard infrastructure: `src/widgets/` (registry, frames, palette, config modals)
 - Shared components (used by multiple plugins): `src/components/`
-- Tab `id` in `yardbird.yaml` must match a key in the `tabComponents` map in `App.vue`
+- Tab `id` must be unique within the `tabs` array in `StoredConfig` / `yardbird.yaml`
 
 ## Git Conventions
 
@@ -231,8 +313,33 @@ Set `mock: true` in the `jmri` plugin config in `yardbird.yaml`.
 - Set `debug: true` in `yardbird.yaml` and check browser console
 
 **Config changes not appearing**
-- App fetches `yardbird.yaml` once at startup — reload the page
+- `yardbird.yaml` is read once at startup as a fallback; live config is in `localStorage` key `yardbird:config`
+- To reset to YAML defaults: call `useConfig().reset()` or clear `yardbird:config` from DevTools → Application → Local Storage
+- Reload the page after any manual localStorage edit
 
 ---
 
-*Last updated: April 2026*
+## Visual Configurator — Complete (shipped in v8.0.0)
+
+All phases implemented on `feat/visual-configurator`, merged to main at v8.0.0.
+
+- [x] **Phase 1** — Config persistence layer: `src/core/types.ts`, `src/core/useConfig.ts`, update `App.vue`
+- [x] **Phase 2** — Edit mode toggle: `src/composables/useEditMode.ts`, edit button in header
+- [x] **Phase 3** — Widget registry + WidgetFrame: `src/widgets/registry.ts`, `src/widgets/WidgetFrame.vue`, `TurnoutWidget.vue`, `LightWidget.vue`
+- [x] **Phase 4** — Gridstack canvas: `src/components/TabCanvas.vue`, replaced tabComponents in `App.vue`
+- [x] **Phase 5** — Widget palette + drag-to-grid: `src/widgets/WidgetPalette.vue`, `GridStack.setupDragIn`
+- [x] **Phase 6** — Widget config modals: `src/composables/useWidgetConfig.ts`, `src/widgets/WidgetConfigModal.vue`, all sub-forms
+- [x] **Phase 7** — Tab management: `src/components/TabManager.vue`, import/export/reset
+- [x] **Phase 8** — Connection management UI: `ConnectionSetup.vue`
+
+### Drag-to-canvas: Key implementation notes
+
+- Widget type passes through drag via module-level `draggingWidgetType` in `src/widgets/dragState.ts` (not element attributes — the clone is a new DOM node)
+- Correct Gridstack event for external drag-ins is `dropped` `(event, prevNode, newNode)` — NOT `added` (which fires for `addWidget`/`makeWidget` only)
+- `setupDragIn` uses `{ flush: 'post' }` watch so palette DOM exists when it runs; `dragInSetup` flag resets on edit mode exit so it re-runs when palette remounts via `v-if`
+- **`acceptWidgets` must be `'.ybw-palette-item'`** — when set to `true`, Gridstack v12 internally hardcodes the selector as `.grid-stack-item` (`gridstack.js:2345`), which never matches our palette divs. Use the explicit class selector.
+- Grid has `minRow: 3` (240px min height); empty-state overlay uses `pointer-events-none` so it never blocks drops
+
+---
+
+*Last updated: May 2026 — v8.0.0*
